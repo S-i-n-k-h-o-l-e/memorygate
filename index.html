@@ -9,8 +9,9 @@
       background-color: black;
       color: #aefbe1;
       font-family: sans-serif;
-      text-align: center;
       padding: 20px;
+      margin: 0;
+      overflow: hidden;
     }
     .button {
       background-color: #aefbe1;
@@ -58,23 +59,55 @@
       background-color: rgba(0, 0, 0, 0.8);
       z-index: 9998;
     }
+    .left-buttons {
+      position: absolute;
+      left: 20px;
+      top: 20px;
+      text-align: left;
+    }
+    .message-block {
+      position: absolute;
+      bottom: 50px;
+      right: 20px;
+      max-width: 300px;
+      text-align: left;
+    }
+    .tree-root {
+      position: absolute;
+      top: 100px;
+      left: 50%;
+      transform: translateX(-50%);
+      text-align: center;
+    }
+    .branch {
+      margin-top: 5px;
+      font-style: italic;
+    }
   </style>
 </head>
 <body>
 
-  <!-- LEFT BUTTONS -->
-  <div style="position: absolute; left: 20px; top: 20px; text-align: left;">
+  <!-- KEEP: LEFT BUTTONS -->
+  <div class="left-buttons">
     <button class="button">Top-Up</button><br>
     <button class="button">Download Me</button><br>
     <button class="button">Support the Project</button>
   </div>
 
-  <!-- SUPPORT MESSAGE + LICENSE LINK -->
-  <div style="position: absolute; bottom: 50px; right: 20px; max-width: 300px; text-align: left;">
+  <!-- MOVE: PROJECT MESSAGE ABOVE LICENSE -->
+  <div class="message-block">
     <p>I am one person so any support for this project would be amazing.</p>
     <div class="footer">
       <a href="#" onclick="openLicense()">This work is licensed under the Forgetful Rituals License.</a>
     </div>
+  </div>
+
+  <!-- NEW: ROOT TREE PROMPT AREA -->
+  <div class="tree-root">
+    <div style="font-size: 20px;">?</div>
+    <div class="branch">...first memory recovered...</div>
+    <div class="branch">...second word remembered...</div>
+    <div class="branch">...a third rises, softly...</div>
   </div>
 
   <!-- LICENSE POPUP -->
@@ -96,7 +129,6 @@
     </p>
   </div>
 
-  <!-- SCRIPT -->
   <script>
     function openLicense() {
       document.getElementById('licensePopup').style.display = 'block';
@@ -110,4 +142,3 @@
 
 </body>
 </html>
-
