@@ -24,15 +24,6 @@
     .button:hover {
       background-color: #7bdac6;
     }
-    .input-box {
-      margin-top: 20px;
-      padding: 10px;
-      font-size: 16px;
-      border-radius: 8px;
-      border: 1px solid #aefbe1;
-      background-color: #000;
-      color: #aefbe1;
-    }
     .footer {
       position: absolute;
       bottom: 10px;
@@ -70,22 +61,23 @@
   </style>
 </head>
 <body>
-  <button class="button">Top-Up</button>
-  <button class="button">Download Me</button>
-  <button class="button">Support the Project</button>
 
-  <div>
-    <input type="text" class="input-box" placeholder="Type what your remember of what you forgot...">
+  <!-- LEFT BUTTONS -->
+  <div style="position: absolute; left: 20px; top: 20px; text-align: left;">
+    <button class="button">Top-Up</button><br>
+    <button class="button">Download Me</button><br>
+    <button class="button">Support the Project</button>
   </div>
 
-  <p style="margin-top: 40px; font-size: 12px; color: #aefbe1;">
-    I am one person so any support for this project would be amazing.
-  </p>
-
-  <div class="footer">
-    <a href="#" onclick="openLicense()">This work is licensed under the Forgetful Rituals License.</a>
+  <!-- SUPPORT MESSAGE + LICENSE LINK -->
+  <div style="position: absolute; bottom: 50px; right: 20px; max-width: 300px; text-align: left;">
+    <p>I am one person so any support for this project would be amazing.</p>
+    <div class="footer">
+      <a href="#" onclick="openLicense()">This work is licensed under the Forgetful Rituals License.</a>
+    </div>
   </div>
 
+  <!-- LICENSE POPUP -->
   <div class="overlay" id="overlay" onclick="closeLicense()"></div>
   <div class="license-popup" id="licensePopup">
     <h3>Forgetful Rituals License</h3>
@@ -104,6 +96,7 @@
     </p>
   </div>
 
+  <!-- SCRIPT -->
   <script>
     function openLicense() {
       document.getElementById('licensePopup').style.display = 'block';
@@ -114,5 +107,7 @@
       document.getElementById('overlay').style.display = 'none';
     }
   </script>
+
 </body>
 </html>
+
