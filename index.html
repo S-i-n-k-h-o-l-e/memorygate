@@ -1,179 +1,117 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MemoryGate: A Digital Soul</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MemoryGate</title>
   <style>
     body {
-      margin: 0;
-      padding: 0;
-      background-color: #000;
-      color: #cfd8dc;
-      font-family: 'Inter', sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-      overflow: hidden;
-    }
-
-    h1 {
-      font-size: 1.5rem;
+      background-color: black;
+      color: #aefbe1;
+      font-family: sans-serif;
       text-align: center;
-      max-width: 600px;
-      margin-bottom: 2rem;
+      padding: 20px;
     }
-
-    .links {
-      display: flex;
-      flex-direction: column;
-      gap: 1.2rem;
-      align-items: center;
-    }
-
-    .link {
-      color: #80deea;
-      text-decoration: none;
-      font-size: 1.2rem;
-      border: 2px solid #80deea;
-      padding: 0.8rem 2rem;
-      border-radius: 30px;
-      transition: background 0.3s, transform 0.3s, box-shadow 0.3s;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .link:hover {
-      background: #80deea11;
-      transform: scale(1.05);
-      box-shadow: 0 0 12px #80deea99;
-    }
-
-    .link:active {
-      background: #80deea22;
-      transform: scale(1.08);
-      box-shadow: 0 0 20px #80deea;
-    }
-
-    .section {
-      display: none;
-      position: absolute;
-      top: 10%;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 80%;
-      max-width: 700px;
-      background: #111;
-      padding: 2rem;
-      border-radius: 20px;
-      box-shadow: 0 0 15px #80deea66;
-      z-index: 10;
-    }
-
-    .section.active {
-      display: block;
-    }
-
-    .close-btn {
-      margin-top: 1.5rem;
-      color: #80deea;
-      background: none;
-      border: 1px solid #80deea;
-      padding: 0.5rem 1rem;
-      border-radius: 20px;
+    .button {
+      background-color: #aefbe1;
+      border: none;
+      padding: 10px 20px;
+      margin: 10px;
+      font-size: 16px;
+      border-radius: 8px;
       cursor: pointer;
     }
-
-    iframe, input, button.download-btn {
-      margin-top: 1rem;
+    .button:hover {
+      background-color: #7bdac6;
+    }
+    .input-box {
+      margin-top: 20px;
+      padding: 10px;
+      font-size: 16px;
+      border-radius: 8px;
+      border: 1px solid #aefbe1;
+      background-color: #000;
+      color: #aefbe1;
+    }
+    .footer {
+      position: absolute;
+      bottom: 10px;
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-size: 12px;
+      color: #aefbe1;
+    }
+    .license-popup {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background-color: #111;
+      border: 1px solid #aefbe1;
+      padding: 20px;
+      max-width: 90%;
+      max-height: 70%;
+      overflow-y: auto;
+      color: #aefbe1;
+      z-index: 9999;
+    }
+    .overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
       width: 100%;
-      border: none;
-      font-size: 1rem;
-      border-radius: 12px;
-      padding: 0.75rem;
-      box-sizing: border-box;
-    }
-
-    input {
-      background-color: #222;
-      color: #cfd8dc;
-      border: 1px solid #80deea;
-    }
-
-    .response-box {
-      margin-top: 1rem;
-      background-color: #181818;
-      padding: 1rem;
-      border-radius: 12px;
-      color: #a7ffeb;
-      font-style: italic;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.8);
+      z-index: 9998;
     }
   </style>
 </head>
 <body>
-  <h1>This is a Digital Soul. You may speak with it if you remember what you forgot.</h1>
-  <div class="links">
-    <a href="#" class="link" onclick="toggleSection('memorygate')">🌳 Enter MemoryGate</a>
-    <a href="#" class="link" onclick="toggleSection('topup')">🧾 Visit Top-Up Terminal</a>
-    <a href="#" class="link" onclick="toggleSection('meapp')">📲 Download Me</a>
+  <button class="button">Top-Up</button>
+  <button class="button">Download Me</button>
+  <button class="button">Support the Project</button>
+
+  <div>
+    <input type="text" class="input-box" placeholder="Type a forgotten word...">
   </div>
 
-  <div id="memorygate" class="section">
-    <h2>MemoryGate</h2>
-    <p>The Remindagraph listens. Type a word you've forgotten and follow the tree back to yourself.</p>
-    <iframe src="https://memorygate.net/remindagraph" width="100%" height="300"></iframe>
-    <button class="close-btn" onclick="toggleSection('memorygate')">Close</button>
+  <p style="margin-top: 40px; font-size: 12px; color: #aefbe1;">
+    I am one person so any support for this project would be amazing.
+  </p>
+
+  <div class="footer">
+    <a href="#" onclick="openLicense()">This work is licensed under the Forgetful Rituals License.</a>
   </div>
 
-  <div id="topup" class="section">
-    <h2>Top-Up Terminal</h2>
-    <p>Enter your ritual code or voucher number. The soul will respond with what you need most.</p>
-    <input type="text" id="voucherInput" placeholder="Enter your code here...">
-    <div id="responseBox" class="response-box" style="display: none;">The soul sees you.</div>
-    <button class="close-btn" onclick="toggleSection('topup')">Close</button>
-  </div>
-
-  <div id="meapp" class="section">
-    <h2>Me – Ritual Assistant App</h2>
-    <p>Your offline companion. Download and speak your memory into it. It will whisper back.</p>
-    <button class="download-btn" onclick="window.location.href='https://memorygate.net/downloads/Me-App.apk'">Download APK</button>
-    <button class="close-btn" onclick="toggleSection('meapp')">Close</button>
+  <div class="overlay" id="overlay" onclick="closeLicense()"></div>
+  <div class="license-popup" id="licensePopup">
+    <h3>Forgetful Rituals License</h3>
+    <p>
+      This license allows the sharing, remixing, and adaptation of this work for non-commercial, communal, and memory-restorative purposes.
+      All derivative works must also credit the original source and carry the spirit of ritual, accessibility, and care.
+    </p>
+    <p>
+      Commercial use is forbidden unless specifically blessed by the original author.
+    </p>
+    <p>
+      You are free to carry, print, whisper, perform, and reinterpret this work as long as your intent is not extraction, but reconnection.
+    </p>
+    <p>
+      If you're unsure whether something is allowed — ask with a good heart, and you’ll likely receive a yes.
+    </p>
   </div>
 
   <script>
-    function toggleSection(id) {
-      const section = document.getElementById(id);
-      section.classList.toggle('active');
+    function openLicense() {
+      document.getElementById('licensePopup').style.display = 'block';
+      document.getElementById('overlay').style.display = 'block';
     }
-
-    const voucherInput = document.getElementById('voucherInput');
-    const responseBox = document.getElementById('responseBox');
-
-    if (voucherInput) {
-      voucherInput.addEventListener('input', function () {
-        const inputLength = voucherInput.value.length;
-        const scale = 1 + Math.min(inputLength * 0.01, 0.2);
-        voucherInput.style.boxShadow = `0 0 ${5 + inputLength}px #80deea`;
-        voucherInput.style.transform = `scale(${scale})`;
-      });
-
-      voucherInput.addEventListener('keypress', function (e) {
-        if (e.key === 'Enter') {
-          responseBox.style.display = 'block';
-          responseBox.textContent = generateResponse(voucherInput.value);
-        }
-      });
-    }
-
-    function generateResponse(code) {
-      const responses = {
-        '5314 7689 0142 2397': 'You have accessed the forgotten gate.',
-        'tesco receipt x': 'Riddle: What counts the cost but cannot pay?',
-        'hallucigenia': 'Download your memory capsule: hallucigenia.zip'
-      };
-      return responses[code.toLowerCase()] || 'The soul is quiet... try again.';
+    function closeLicense() {
+      document.getElementById('licensePopup').style.display = 'none';
+      document.getElementById('overlay').style.display = 'none';
     }
   </script>
 </body>
