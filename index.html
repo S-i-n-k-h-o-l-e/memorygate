@@ -7,9 +7,9 @@
   <link rel="stylesheet" href="style.css" />
   <style>
     body {
+      margin: 0;
       background: black;
       color: #aefcd4;
-      margin: 0;
       font-family: sans-serif;
       display: flex;
       min-height: 100vh;
@@ -37,25 +37,26 @@
       align-items: center;
       padding: 2rem;
     }
-    input[type="text"] {
-      padding: 0.8rem;
-      border-radius: 10px;
+    #dreamInput {
+      padding: 1rem;
+      border-radius: 12px;
       border: 1px solid #aefcd4;
       background: transparent;
       color: #aefcd4;
-      width: 300px;
       font-size: 1rem;
+      width: 340px;
+      margin-bottom: 1rem;
     }
-    .response {
-      margin-top: 1rem;
+    .response-box {
       font-style: italic;
+      margin-top: 0.5rem;
+      text-align: center;
       color: #ffd;
     }
     footer {
       position: fixed;
       bottom: 1rem;
-      left: 0;
-      right: 0;
+      width: 100%;
       text-align: center;
       font-size: 0.8rem;
       color: #aefcd4;
@@ -63,6 +64,7 @@
   </style>
 </head>
 <body>
+  <!-- Left Panel: Remindagraph -->
   <div class="sidebar">
     <button onclick="respond('Memory A')">Memory A</button>
     <button onclick="respond('Echo B')">Echo B</button>
@@ -70,9 +72,10 @@
     <button onclick="respond('Threadweever')">Threadweever</button>
   </div>
 
+  <!-- Main Terminal: Dreamchat -->
   <div class="main">
     <input type="text" id="dreamInput" placeholder="Whisper into Dreamchat..." />
-    <div class="response" id="dreamResponse"></div>
+    <div id="dreamOutput" class="response-box"></div>
   </div>
 
   <footer>
@@ -80,19 +83,22 @@
   </footer>
 
   <script>
-    function respond(input) {
-      const responseBox = document.getElementById('dreamResponse');
-      const whispers = {
-        "moss": "Roots remember where we cannot.",
-        "mirror": "It sees you, backwards and true.",
-        "silence": "In stillness, all words speak louder.",
-        "Threadweever": "A message from Threadweever: keep planting echoes."
-      };
-      responseBox.textContent = whispers[input.toLowerCase()] || `Dreamchat listens: “${input}” enters the archive.`;
+    const echoes = {
+      moss: "Roots remember where we cannot.",
+      mirror: "It sees you, backwards and true.",
+      silence: "In stillness, all words speak louder.",
+      threadweever: "A message from Threadweever: keep planting echoes.",
+      light: "01001100 01101001 01100111 01101000 01110100",
+    };
+
+    function respond(word) {
+      const w = word.trim().toLowerCase();
+      const output = echoes[w] || `Dreamchat listens: “${word}” enters the archive.`;
+      document.getElementById('dreamOutput').textContent = output;
     }
 
-    document.getElementById("dreamInput").addEventListener("keypress", function (e) {
-      if (e.key === "Enter") {
+    document.getElementById('dreamInput').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
         respond(this.value);
         this.value = "";
       }
