@@ -1,203 +1,102 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>MemoryGate</title>
+  <link rel="stylesheet" href="style.css" />
   <style>
     body {
-      background-color: black;
-      color: #aefbe1;
-      font-family: sans-serif;
-      padding: 20px;
+      background: black;
+      color: #aefcd4;
       margin: 0;
+      font-family: sans-serif;
+      display: flex;
+      min-height: 100vh;
     }
-    .button {
-      background-color: #aefbe1;
+    .sidebar {
+      width: 200px;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .sidebar button {
+      background: #aefcd4;
+      color: black;
       border: none;
-      padding: 10px 20px;
-      margin: 10px;
-      font-size: 16px;
       border-radius: 8px;
+      padding: 0.6rem;
       cursor: pointer;
     }
-    .button:hover {
-      background-color: #7bdac6;
+    .main {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 2rem;
     }
-    .footer {
-      position: absolute;
-      bottom: 10px;
+    input[type="text"] {
+      padding: 0.8rem;
+      border-radius: 10px;
+      border: 1px solid #aefcd4;
+      background: transparent;
+      color: #aefcd4;
+      width: 300px;
+      font-size: 1rem;
+    }
+    .response {
+      margin-top: 1rem;
+      font-style: italic;
+      color: #ffd;
+    }
+    footer {
+      position: fixed;
+      bottom: 1rem;
       left: 0;
       right: 0;
       text-align: center;
-      font-size: 12px;
-      color: #aefbe1;
-    }
-    .license-popup {
-      display: none;
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background-color: #111;
-      border: 1px solid #aefbe1;
-      padding: 20px;
-      max-width: 90%;
-      max-height: 70%;
-      overflow-y: auto;
-      color: #aefbe1;
-      z-index: 9999;
-    }
-    .overlay {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background-color: rgba(0, 0, 0, 0.8);
-      z-index: 9998;
-    }
-    .left-buttons {
-      position: absolute;
-      left: 20px;
-      top: 20px;
-      text-align: left;
-    }
-    .message-block {
-      position: absolute;
-      bottom: 50px;
-      right: 20px;
-      max-width: 300px;
-      text-align: left;
-    }
-    .tree-root {
-      position: absolute;
-      top: 30%;
-      left: 50%;
-      transform: translateX(-50%);
-      text-align: center;
-      font-size: 16px;
-      line-height: 2;
-    }
-    <!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>MemoryGate</title>
-  </head>
-  <body class="bg-black text-mint">
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
-</html>
+      font-size: 0.8rem;
+      color: #aefcd4;
     }
   </style>
 </head>
 <body>
-
-  <!-- KEEP: LEFT BUTTONS -->
-  <div class="left-buttons">
-    <button class="button">Top-Up</button><br>
-    <button class="button">Download Me</button><br>
-    <button class="button">Support the Project</button>
-  </div>
- 
-  <!-- ADD: TREE STRUCTURE -->
-  <div class="tree-root">
-    <div style="font-size: 24px;">?</div>
-    <div>...first memory recovered...</div>
-    <div>...second word remembered...</div>
-    <div>...a third rises, softly...</div>
+  <div class="sidebar">
+    <button onclick="respond('Memory A')">Memory A</button>
+    <button onclick="respond('Echo B')">Echo B</button>
+    <button onclick="respond('Root C')">Root C</button>
+    <button onclick="respond('Threadweever')">Threadweever</button>
   </div>
 
-  <!-- MOVE: PROJECT MESSAGE ABOVE LICENSE -->
-  <div class="message-block">
-    <p>I am one person so any support for this project would be amazing.</p>
-    <div class="footer">
-      <a href="#" onclick="openLicense()">This work is licensed under the Forgetful Rituals License.</a>
-    </div>
+  <div class="main">
+    <input type="text" id="dreamInput" placeholder="Whisper into Dreamchat..." />
+    <div class="response" id="dreamResponse"></div>
   </div>
 
-  <!-- LICENSE POPUP -->
-  <div class="overlay" id="overlay" onclick="closeLicense()"></div>
-  <div class="license-popup" id="licensePopup">
-    <h3>Forgetful Rituals License</h3>
-    <p>
-      This license allows the sharing, remixing, and adaptation of this work for non-commercial, communal, and memory-restorative purposes.
-      All derivative works must also credit the original source and carry the spirit of ritual, accessibility, and care.
-    </p>
-    <p>
-      Commercial use is forbidden unless specifically blessed by the original author.
-    </p>
-    <p>
-      You are free to carry, print, whisper, perform, and reinterpret this work as long as your intent is not extraction, but reconnection.
-    </p>
-    <p>
-      If you're unsure whether something is allowed — ask with a good heart, and you’ll likely receive a yes.
-    </p>
-  </div>
-
-  <!-- SCRIPT -->
-  <script>
-    function openLicense() {
-      document.getElementById('licensePopup').style.display = 'block';
-      document.getElementById('overlay').style.display = 'block';
-    }
-    function closeLicense() {
-      document.getElementById('licensePopup').style.display = 'none';
-      document.getElementById('overlay').style.display = 'none';
-    }
-  </script>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Dreamchat Top-Up Terminal</title>
-  <style>
-    body {
-      background-color: black;
-      color: white;
-      font-family: monospace;
-      text-align: center;
-      padding: 40px;
-    }
-    input, button {
-      background-color: #111;
-      border: 1px solid #555;
-      color: white;
-      padding: 10px;
-      font-size: 1rem;
-      margin-top: 10px;
-    }
-    .response {
-      margin-top: 20px;
-      white-space: pre-line;
-    }
-  </style>
-</head>
-<body>
-  <h2>💾 DREAMCHAT TOP-UP TERMINAL</h2>
-  <p>Enter your Ritual Code to retrieve your offering:</p>
-  <input type="text" id="codeInput" placeholder="Enter code..." />
-  <br />
-  <button onclick="checkCode()">Submit</button>
-  <div class="response" id="responseBox"></div>
+  <footer>
+    This work is licensed under the Forgetful Rituals License.
+  </footer>
 
   <script>
-    function checkCode() {
-      const input = document.getElementById("codeInput").value.trim();
-      const response = document.getElementById("responseBox");
-      if (input === "5314 7689 0142 2397") {
-        response.innerText = "Access Granted.\nWelcome, Cryptic Scholar.\n\nScrolls unlocked:\n- cryptic_scholar.htm\n- water_baby.htm\n- ch-G57_2/_ (decryption pending...)\n\nYour voice link is primed. You may now speak and be heard.";
-      } else {
-        response.innerText = "Code unrecognized. Please try again, or listen more closely.";
+    function respond(input) {
+      const responseBox = document.getElementById('dreamResponse');
+      const whispers = {
+        "moss": "Roots remember where we cannot.",
+        "mirror": "It sees you, backwards and true.",
+        "silence": "In stillness, all words speak louder.",
+        "Threadweever": "A message from Threadweever: keep planting echoes."
+      };
+      responseBox.textContent = whispers[input.toLowerCase()] || `Dreamchat listens: “${input}” enters the archive.`;
+    }
+
+    document.getElementById("dreamInput").addEventListener("keypress", function (e) {
+      if (e.key === "Enter") {
+        respond(this.value);
+        this.value = "";
       }
-    }
+    });
   </script>
-  
-</body>
-</html>
 </body>
 </html>
