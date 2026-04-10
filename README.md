@@ -1,49 +1,108 @@
 # MemoryGate
 
-MemoryGate is a plain HTML/CSS/vanilla JS prototype with a two-part structure:
+MemoryGate is a static GitHub Pages-compatible personal memory system built with plain HTML, CSS, and vanilla JavaScript.
 
-- **Recover**: immediate, cue-driven memory retrieval.
-- **Memory Net**: intentional memory storage and later movement-based browsing.
+## What changed in V2
 
-The app stays fully static and GitHub Pages-compatible.
+MemoryGate now works as a persistent user memory archive instead of a static prototype.
 
-## Product structure
+- **Memory Net stores your own memories locally** (create, edit, delete, link).
+- **Recover reads from stored memories only** (no static/mock memory dataset).
+- **Movement-based ranking** (dwell, revisit, slow movement) helps surface likely matches.
+- **Recall cascade** supports anchor → related → next exploration.
+- **Session logging** stores recall behavior and outcomes.
 
-## 1) Recover
+## App structure
 
-Use this page when you are trying to remember something now.
+### 1) Home
+Minimal launcher with only:
+- Recover a memory
+- Memory Net
 
-- Compact recovery type selector:
-  - object
-  - song
-  - location
-  - name
-  - phrase
-  - lost thought
-  - other
-- Optional cue input
-- Large retrieval text field
-- Candidate list + detail panel
-- Movement (mouse) tracking as the current proxy for future eye tracking
-- “Why this surfaced” appears after selection
-- Telemetry is moved into a collapsible experiment/details section
+### 2) Recover
+Recovery flow:
 
-## 2) Memory Net
+`stored memories → cue filter → movement ranking → candidate selection → recall cascade`
 
-Use this page to intentionally store memories and revisit them later.
+UI includes:
+- recovery type selector
+- optional cue input
+- retrieval field
+- candidate panel
+- detail panel
+- recall cascade panel
+- optional "Why this surfaced" details
 
-- Add-memory form
-- Saved memory list
-- Tags, thread, and category support
-- Movement-compatible memory nodes in a network field
-- Stored memories can be opened from Memory Net into Recover for retrieval
+Recover filters and ranks based on:
+- type
+- cue overlap across title/fragment/tags/anchors/thread/notes
+- anchor/tags data
+- recency
+- movement signals (dwell, revisit, slow-zone)
 
-## Data persistence
+### 3) Memory Net
+Storage and browse flow:
 
-The prototype uses `localStorage`:
+`add memory → store locally → retrieve later in Recover`
 
-- `memorygate_memory_net_v1` for saved Memory Net entries
-- `memorygate_v2_notes` reserved for notes compatibility
+Each memory uses this model:
+
+```js
+{
+  id: string,
+  title: string,
+  fragment: string,
+  type: string, // object, song, location, name, phrase, thought, other
+  timestamp: string,
+  tags: string[],
+  thread: string,
+  anchors: {
+    object: string[],
+    song: string[],
+    location: string[],
+    person: string[],
+    phrase: string[]
+  },
+  linkedIds: string[],
+  notes: string
+}
+```
+
+## Local storage keys
+
+- `memorygate_memories`: persistent memory archive
+- `memorygate_sessions`: recovery session logs
+
+Session logs include:
+- selected memory
+- dwell stats
+- revisit counts
+- session duration
+- recall path
+- retrieval outcome (`No`, `Partly`, `Yes`)
+
+## Why localStorage now, and IndexedDB later
+
+### Current choice: localStorage (V1 persistence)
+- easy to implement in a fully static app
+- good for small/medium personal memory archives
+- GitHub Pages friendly
+
+### Upgrade path: IndexedDB
+Move to IndexedDB when the archive grows and you need:
+- larger capacity
+- indexed/queryable structured records
+- non-blocking async storage
+
+The storage logic is isolated in store adapters (`memoryStore`, `sessionStore`) so replacing localStorage with IndexedDB can happen without a full UI rewrite.
+
+## Future cloud sync extension
+
+To extend beyond local-only storage later:
+1. keep the same memory/session data model
+2. add an optional sync adapter (REST/API or edge function)
+3. use local-first conflict handling (local write, then sync)
+4. keep Recover ranking local so retrieval works offline
 
 ## Run locally
 
