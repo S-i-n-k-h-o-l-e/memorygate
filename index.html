@@ -3,89 +3,95 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>MemoryGate V2 - Movement-Led Retrieval Prototype</title>
+    <title>MemoryGate</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <div class="app-shell">
       <header class="top-bar">
-        <h1>MemoryGate V2</h1>
-        <p>Movement-led retrieval with transparent ranking, linking, and recall sessions.</p>
+        <h1>MemoryGate</h1>
+        <nav class="top-nav" aria-label="Primary">
+          <button type="button" data-route="home" class="nav-btn">Home</button>
+          <button type="button" data-route="recover" class="nav-btn">Recover</button>
+          <button type="button" data-route="memory-net" class="nav-btn">Memory Net</button>
+        </nav>
       </header>
 
-      <section class="control-strip">
-        <div class="control-group">
-          <span class="group-label">Retrieval mode</span>
-          <div id="modeControls" class="button-row" role="group" aria-label="Retrieval mode">
-            <button type="button" data-mode="free-drift" class="mode-btn is-active">Free drift</button>
-            <button type="button" data-mode="focused-recall" class="mode-btn">Focused recall</button>
-            <button type="button" data-mode="weak-memory" class="mode-btn">Weak memory mode</button>
-          </div>
-        </div>
-        <div class="control-group">
-          <span class="group-label">Field organization</span>
-          <label for="organizationMode" class="visually-hidden">Organize memory cards by</label>
-          <select id="organizationMode">
-            <option value="default">Default layout</option>
-            <option value="thread">By thread</option>
-            <option value="emotion">By emotional state</option>
-            <option value="time">By time</option>
-            <option value="relevance">By inferred relevance</option>
-          </select>
-        </div>
-      </section>
-
-      <main class="layout">
-        <section class="memory-field-panel">
-          <div class="panel-label-row">
-            <h2>Memory Field</h2>
-            <span class="panel-note">Move first. Type later.</span>
-          </div>
-          <div id="memoryField" class="memory-field" aria-label="Memory field">
-            <svg id="linkLayer" class="link-layer" aria-hidden="true"></svg>
+      <main>
+        <section id="homePage" class="page">
+          <div class="home-grid">
+            <button type="button" class="home-option" data-route="recover">Recover a memory</button>
+            <button type="button" class="home-option" data-route="memory-net">Open memory net</button>
           </div>
         </section>
 
-        <aside class="detail-panel">
-          <h2>Detail Panel</h2>
-
-          <section id="liveSignalBlock" class="subpanel">
-            <h3>Live signals</h3>
-            <div class="signal-grid">
-              <div><span>Dwell time</span><strong id="signalDwell">0ms</strong></div>
-              <div><span>Revisit count</span><strong id="signalRevisit">0</strong></div>
-              <div><span>Slow-zone time</span><strong id="signalSlow">0ms</strong></div>
-              <div><span>Relevance score</span><strong id="signalScore">0.00</strong></div>
-              <div><span>Thread pull</span><strong id="signalThreadPull">none</strong></div>
+        <section id="recoverPage" class="page hidden">
+          <div class="recover-controls panel">
+            <div id="typeSelector" class="type-selector" role="group" aria-label="Recovery type">
+              <button type="button" data-type="object">object</button>
+              <button type="button" data-type="song">song</button>
+              <button type="button" data-type="location">location</button>
+              <button type="button" data-type="name">name</button>
+              <button type="button" data-type="phrase">phrase</button>
+              <button type="button" data-type="lost thought">lost thought</button>
+              <button type="button" data-type="other">other</button>
             </div>
-          </section>
+            <label class="visually-hidden" for="cueInput">Optional cue</label>
+            <input id="cueInput" type="text" placeholder="Optional cue" />
+          </div>
 
-          <section class="subpanel">
-            <h3>Freeze controls</h3>
-            <div class="button-row">
-              <button id="lockSelectionBtn" type="button">Lock selection</button>
-              <button id="revealRelatedBtn" type="button">Reveal related</button>
-              <button id="startRecallBtn" type="button">Start recall session</button>
-            </div>
-          </section>
+          <div class="recover-layout">
+            <section class="panel">
+              <textarea id="retrievalField" class="retrieval-field" placeholder="What are you trying to recover right now?"></textarea>
+              <div id="recoverZone" class="recover-zone" aria-label="Movement retrieval zone">
+                <svg id="recoverLinks" class="link-layer" aria-hidden="true"></svg>
+              </div>
+            </section>
 
-          <section id="detailContent" class="detail-content">
-            <p class="muted">Click a memory item to inspect details and add a note.</p>
-          </section>
+            <aside class="panel right-col">
+              <section>
+                <h2>Candidates</h2>
+                <div id="candidateList" class="candidate-list"></div>
+              </section>
 
-          <section id="outcomePanel" class="subpanel">
-            <h3>Retrieval outcome</h3>
-            <p>Did this help you retrieve something?</p>
-            <div class="button-row" role="group" aria-label="Retrieval outcome">
-              <button type="button" class="outcome-btn" data-outcome="No">No</button>
-              <button type="button" class="outcome-btn" data-outcome="Partly">Partly</button>
-              <button type="button" class="outcome-btn" data-outcome="Yes">Yes</button>
-            </div>
-          </section>
-        </aside>
+              <section id="recoverDetail" class="detail-panel">
+                <p class="muted">Select a candidate.</p>
+              </section>
+
+              <details>
+                <summary>Experiment details</summary>
+                <div id="recoverTelemetry" class="telemetry"></div>
+              </details>
+            </aside>
+          </div>
+        </section>
+
+        <section id="memoryNetPage" class="page hidden">
+          <div class="net-layout">
+            <section class="panel">
+              <h2>Add memory</h2>
+              <form id="memoryForm" class="memory-form">
+                <input id="memoryTitle" required type="text" placeholder="Title" />
+                <textarea id="memoryFragment" required placeholder="Memory"></textarea>
+                <input id="memoryTags" type="text" placeholder="tags (comma separated)" />
+                <input id="memoryThread" type="text" placeholder="thread" />
+                <input id="memoryCategory" type="text" placeholder="category" />
+                <button type="submit">Save to memory net</button>
+              </form>
+            </section>
+
+            <section class="panel">
+              <h2>Memory net</h2>
+              <div id="netField" class="net-field"></div>
+            </section>
+
+            <section class="panel">
+              <h2>Saved memories</h2>
+              <div id="memoryList" class="memory-list"></div>
+            </section>
+          </div>
+        </section>
       </main>
-
-      <footer class="status-strip" id="statusStrip" aria-live="polite"></footer>
     </div>
 
     <script src="app.js"></script>
