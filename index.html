@@ -21,7 +21,7 @@
         <section id="homePage" class="page">
           <div class="home-grid">
             <button type="button" class="home-option" data-route="recover">Recover a memory</button>
-            <button type="button" class="home-option" data-route="memory-net">Open memory net</button>
+            <button type="button" class="home-option" data-route="memory-net">Memory Net</button>
           </div>
         </section>
 
@@ -33,7 +33,7 @@
               <button type="button" data-type="location">location</button>
               <button type="button" data-type="name">name</button>
               <button type="button" data-type="phrase">phrase</button>
-              <button type="button" data-type="lost thought">lost thought</button>
+              <button type="button" data-type="thought">thought</button>
               <button type="button" data-type="other">other</button>
             </div>
             <label class="visually-hidden" for="cueInput">Optional cue</label>
@@ -58,10 +58,21 @@
                 <p class="muted">Select a candidate.</p>
               </section>
 
+              <section>
+                <h2>Recall cascade</h2>
+                <div id="cascadeList" class="candidate-list"></div>
+              </section>
+
               <details>
-                <summary>Experiment details</summary>
+                <summary>Why this surfaced</summary>
                 <div id="recoverTelemetry" class="telemetry"></div>
               </details>
+
+              <div class="outcome-row">
+                <button type="button" class="outcome-btn" data-outcome="No">No</button>
+                <button type="button" class="outcome-btn" data-outcome="Partly">Partly</button>
+                <button type="button" class="outcome-btn" data-outcome="Yes">Yes</button>
+              </div>
             </aside>
           </div>
         </section>
@@ -72,21 +83,36 @@
               <h2>Add memory</h2>
               <form id="memoryForm" class="memory-form">
                 <input id="memoryTitle" required type="text" placeholder="Title" />
-                <textarea id="memoryFragment" required placeholder="Memory"></textarea>
+                <textarea id="memoryFragment" required placeholder="Fragment"></textarea>
+                <select id="memoryType" required>
+                  <option value="">Type</option>
+                  <option value="object">object</option>
+                  <option value="song">song</option>
+                  <option value="location">location</option>
+                  <option value="name">name</option>
+                  <option value="phrase">phrase</option>
+                  <option value="thought">thought</option>
+                  <option value="other">other</option>
+                </select>
                 <input id="memoryTags" type="text" placeholder="tags (comma separated)" />
                 <input id="memoryThread" type="text" placeholder="thread" />
-                <input id="memoryCategory" type="text" placeholder="category" />
-                <button type="submit">Save to memory net</button>
+                <input id="anchorObject" type="text" placeholder="anchor object(s)" />
+                <input id="anchorSong" type="text" placeholder="anchor song(s)" />
+                <input id="anchorLocation" type="text" placeholder="anchor location(s)" />
+                <input id="anchorPerson" type="text" placeholder="anchor person(s)" />
+                <input id="anchorPhrase" type="text" placeholder="anchor phrase(s)" />
+                <textarea id="memoryNotes" placeholder="notes"></textarea>
+                <button type="submit">Save</button>
               </form>
             </section>
 
             <section class="panel">
-              <h2>Memory net</h2>
+              <h2>Memory field</h2>
               <div id="netField" class="net-field"></div>
             </section>
 
             <section class="panel">
-              <h2>Saved memories</h2>
+              <h2>Stored memories</h2>
               <div id="memoryList" class="memory-list"></div>
             </section>
           </div>
