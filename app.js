@@ -409,7 +409,27 @@ function updateLeadItem() {
   }
 
   const nextLead = maxByScore(memoryEntries);
-  state.leadId = nextLead ? nextLead.id : null;
+  if (!nextLead) {
+    state.leadId = null;
+    return;
+  }
+
+  // Anchor stability: in focused modes, avoid frequent lead switching unless
+  // a challenger has a clearly higher score.
+  const currentLeadId = state.leadId;
+  if (!currentLeadId || currentLeadId === nextLead.id) {
+    state.leadId = nextLead.id;
+    return;
+  }
+
+  const modeCfg = getModeConfig();
+  const currentScore = state.metricsById[currentLeadId]?.inferredScore ?? 0;
+  const challengerScore = state.metricsById[nextLead.id]?.inferredScore ?? 0;
+  const requiredDelta = 0.18 * modeCfg.anchorStabilityBonus;
+
+  if (challengerScore - currentScore >= requiredDelta) {
+    state.leadId = nextLead.id;
+  }
 }
 
 function updateReasons() {
