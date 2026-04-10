@@ -1,108 +1,66 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>MemoryGate</title>
-  <link rel="stylesheet" href="style.css" />
-  <style>
-    body {
-      margin: 0;
-      background: black;
-      color: #aefcd4;
-      font-family: sans-serif;
-      display: flex;
-      min-height: 100vh;
-    }
-    .sidebar {
-      width: 200px;
-      padding: 1rem;
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-    }
-    .sidebar button {
-      background: #aefcd4;
-      color: black;
-      border: none;
-      border-radius: 8px;
-      padding: 0.6rem;
-      cursor: pointer;
-    }
-    .main {
-      flex-grow: 1;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      padding: 2rem;
-    }
-    #dreamInput {
-      padding: 1rem;
-      border-radius: 12px;
-      border: 1px solid #aefcd4;
-      background: transparent;
-      color: #aefcd4;
-      font-size: 1rem;
-      width: 340px;
-      margin-bottom: 1rem;
-    }
-    .response-box {
-      font-style: italic;
-      margin-top: 0.5rem;
-      text-align: center;
-      color: #ffd;
-    }
-    footer {
-      position: fixed;
-      bottom: 1rem;
-      width: 100%;
-      text-align: center;
-      font-size: 0.8rem;
-      color: #aefcd4;
-    }
-  </style>
-</head>
-<body>
-  <!-- Left Panel: Remindagraph -->
-  <div class="sidebar">
-    <button onclick="respond('Memory A')">Memory A</button>
-    <button onclick="respond('Echo B')">Echo B</button>
-    <button onclick="respond('Root C')">Root C</button>
-    <button onclick="respond('Threadweever')">Threadweever</button>
-  </div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MemoryGate V2 - Retrieval Experiment Prototype</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="top-bar">
+        <h1>MemoryGate V2</h1>
+        <p>Movement-led retrieval experiment (mouse movement as eye-tracking proxy)</p>
+      </header>
 
-  <!-- Main Terminal: Dreamchat -->
-  <div class="main">
-    <input type="text" id="dreamInput" placeholder="Whisper into Dreamchat..." />
-    <div id="dreamOutput" class="response-box"></div>
-  </div>
+      <section class="control-strip" aria-label="retrieval controls">
+        <div class="control-group">
+          <label for="modeSelect">Retrieval mode</label>
+          <select id="modeSelect">
+            <option value="freeDrift">Free drift</option>
+            <option value="focusedRecall">Focused recall</option>
+            <option value="weakMemory">Weak memory mode</option>
+          </select>
+        </div>
 
-  <footer>
-    This work is licensed under the Forgetful Rituals License.
-  </footer>
+        <div class="control-group">
+          <label for="fieldSortSelect">Field organization</label>
+          <select id="fieldSortSelect">
+            <option value="relevance">By inferred relevance</option>
+            <option value="thread">By thread</option>
+            <option value="emotional_state">By emotional state</option>
+            <option value="time">By time</option>
+          </select>
+        </div>
 
-  <script>
-    const echoes = {
-      moss: "Roots remember where we cannot.",
-      mirror: "It sees you, backwards and true.",
-      silence: "In stillness, all words speak louder.",
-      threadweever: "A message from Threadweever: keep planting echoes.",
-      light: "01001100 01101001 01100111 01101000 01110100",
-    };
+        <div class="button-group">
+          <button id="lockBtn" type="button">Lock selection</button>
+          <button id="revealBtn" type="button">Reveal related</button>
+          <button id="sessionBtn" type="button">Start recall session</button>
+        </div>
+      </section>
 
-    function respond(word) {
-      const w = word.trim().toLowerCase();
-      const output = echoes[w] || `Dreamchat listens: “${word}” enters the archive.`;
-      document.getElementById('dreamOutput').textContent = output;
-    }
+      <main class="layout">
+        <section class="memory-field-panel">
+          <div class="panel-label-row">
+            <h2>Memory Field</h2>
+            <span class="panel-note">Move first. Type only after selection.</span>
+          </div>
+          <div id="memoryField" class="memory-field" aria-label="Memory field"></div>
+        </section>
 
-    document.getElementById('dreamInput').addEventListener('keypress', function(e) {
-      if (e.key === 'Enter') {
-        respond(this.value);
-        this.value = "";
-      }
-    });
-  </script>
-</body>
+        <aside class="detail-panel">
+          <h2>Detail Panel</h2>
+          <section id="liveSignalBlock" class="live-signal-block" aria-live="polite"></section>
+          <div id="detailContent" class="detail-content">
+            <p class="muted">Click a memory item to inspect details and add a note.</p>
+          </div>
+        </aside>
+      </main>
+
+      <footer class="status-strip" id="statusStrip" aria-live="polite"></footer>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
 </html>
