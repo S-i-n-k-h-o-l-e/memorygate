@@ -4,6 +4,8 @@ MemoryGate V2 is a GitHub Pages-compatible static prototype for **movement-led m
 
 The interface is designed for cognitively fragile retrieval states: movement and orienting signals come first, typing remains secondary.
 
+This version is an incremental V2 update on top of the previously merged V1 static prototype.
+
 ---
 
 ## What is new in V2

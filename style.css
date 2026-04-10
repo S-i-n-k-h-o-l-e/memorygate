@@ -188,6 +188,12 @@ button.active,
   opacity: 1;
 }
 
+.memory-item.promoted {
+  border-color: #84bdf4;
+  box-shadow: 0 0 0 1px rgba(132, 189, 244, 0.32), 0 7px 18px rgba(8, 18, 32, 0.52);
+  opacity: 0.96;
+}
+
 .memory-item.related {
   border-color: #5d89b6;
   box-shadow: 0 0 0 1px rgba(152, 208, 255, 0.2), 0 5px 14px rgba(8, 18, 32, 0.5);

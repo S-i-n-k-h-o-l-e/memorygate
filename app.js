@@ -26,6 +26,7 @@ const config = {
     metricsIntervalMs: 400,
     revealRelatedCount: 4,
     maxVisibleWeakMode: 5,
+    promotedThreshold: 1.45,
   },
   modes: {
     freeDrift: {
@@ -615,6 +616,7 @@ function renderMemoryField() {
     card.style.transform = `translate(-50%, -50%) scale(${(scoreFactor + leadBoost + relatedBoost).toFixed(3)})`;
 
     if (isLeading) card.classList.add('leading');
+    if (m.inferredScore >= config.ui.promotedThreshold) card.classList.add('promoted');
     if (isSelected) card.classList.add('selected');
     if (isLocked) card.classList.add('locked');
     if (isRelated) card.classList.add('related');
