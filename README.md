@@ -137,6 +137,15 @@ Then open <http://localhost:8000>.
 
 ---
 
+## Persistence and deployment notes
+
+- Notes are persisted in browser localStorage at `memorygate_v1_notes`.
+- Session snapshots are persisted in browser localStorage at `memorygate_v2_session_logs`.
+- The app is fully static (`index.html`, `style.css`, `app.js`) and requires no backend.
+- GitHub Pages can serve it directly from repository root with no build step.
+
+---
+
 ## GitHub Pages deployment
 
 1. Push repository to GitHub.
