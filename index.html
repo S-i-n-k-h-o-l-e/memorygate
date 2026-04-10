@@ -3,18 +3,37 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>MemoryGate V1 - Movement-Led Retrieval Prototype</title>
+    <title>MemoryGate V2 - Movement-Led Retrieval Prototype</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <div class="app-shell">
       <header class="top-bar">
-        <h1>MemoryGate V1</h1>
-        <p>
-          Movement-led memory retrieval prototype (mouse movement stands in for eye
-          tracking)
-        </p>
+        <h1>MemoryGate V2</h1>
+        <p>Movement-led retrieval with transparent ranking, linking, and recall sessions.</p>
       </header>
+
+      <section class="control-strip">
+        <div class="control-group">
+          <span class="group-label">Retrieval mode</span>
+          <div id="modeControls" class="button-row" role="group" aria-label="Retrieval mode">
+            <button type="button" data-mode="free-drift" class="mode-btn is-active">Free drift</button>
+            <button type="button" data-mode="focused-recall" class="mode-btn">Focused recall</button>
+            <button type="button" data-mode="weak-memory" class="mode-btn">Weak memory mode</button>
+          </div>
+        </div>
+        <div class="control-group">
+          <span class="group-label">Field organization</span>
+          <label for="organizationMode" class="visually-hidden">Organize memory cards by</label>
+          <select id="organizationMode">
+            <option value="default">Default layout</option>
+            <option value="thread">By thread</option>
+            <option value="emotion">By emotional state</option>
+            <option value="time">By time</option>
+            <option value="relevance">By inferred relevance</option>
+          </select>
+        </div>
+      </section>
 
       <main class="layout">
         <section class="memory-field-panel">
@@ -22,23 +41,51 @@
             <h2>Memory Field</h2>
             <span class="panel-note">Move first. Type later.</span>
           </div>
-          <div id="memoryField" class="memory-field" aria-label="Memory field"></div>
+          <div id="memoryField" class="memory-field" aria-label="Memory field">
+            <svg id="linkLayer" class="link-layer" aria-hidden="true"></svg>
+          </div>
         </section>
 
         <aside class="detail-panel">
           <h2>Detail Panel</h2>
-          <div id="detailContent" class="detail-content">
+
+          <section id="liveSignalBlock" class="subpanel">
+            <h3>Live signals</h3>
+            <div class="signal-grid">
+              <div><span>Dwell time</span><strong id="signalDwell">0ms</strong></div>
+              <div><span>Revisit count</span><strong id="signalRevisit">0</strong></div>
+              <div><span>Slow-zone time</span><strong id="signalSlow">0ms</strong></div>
+              <div><span>Relevance score</span><strong id="signalScore">0.00</strong></div>
+              <div><span>Thread pull</span><strong id="signalThreadPull">none</strong></div>
+            </div>
+          </section>
+
+          <section class="subpanel">
+            <h3>Freeze controls</h3>
+            <div class="button-row">
+              <button id="lockSelectionBtn" type="button">Lock selection</button>
+              <button id="revealRelatedBtn" type="button">Reveal related</button>
+              <button id="startRecallBtn" type="button">Start recall session</button>
+            </div>
+          </section>
+
+          <section id="detailContent" class="detail-content">
             <p class="muted">Click a memory item to inspect details and add a note.</p>
-          </div>
+          </section>
+
+          <section id="outcomePanel" class="subpanel">
+            <h3>Retrieval outcome</h3>
+            <p>Did this help you retrieve something?</p>
+            <div class="button-row" role="group" aria-label="Retrieval outcome">
+              <button type="button" class="outcome-btn" data-outcome="No">No</button>
+              <button type="button" class="outcome-btn" data-outcome="Partly">Partly</button>
+              <button type="button" class="outcome-btn" data-outcome="Yes">Yes</button>
+            </div>
+          </section>
         </aside>
       </main>
 
-      <footer class="status-strip" id="statusStrip" aria-live="polite">
-        <span>selected: none</span>
-        <span>tracked items: 0</span>
-        <span>avg speed: 0.00 px/ms</span>
-        <span>slow-zone events: 0</span>
-      </footer>
+      <footer class="status-strip" id="statusStrip" aria-live="polite"></footer>
     </div>
 
     <script src="app.js"></script>
