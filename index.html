@@ -3,42 +3,101 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>MemoryGate V1 - Movement-Led Retrieval Prototype</title>
+    <title>MemoryGate</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <div class="app-shell">
       <header class="top-bar">
-        <h1>MemoryGate V1</h1>
-        <p>
-          Movement-led memory retrieval prototype (mouse movement stands in for eye
-          tracking)
-        </p>
+        <h1>MemoryGate</h1>
       </header>
 
-      <main class="layout">
-        <section class="memory-field-panel">
-          <div class="panel-label-row">
-            <h2>Memory Field</h2>
-            <span class="panel-note">Move first. Type later.</span>
-          </div>
-          <div id="memoryField" class="memory-field" aria-label="Memory field"></div>
-        </section>
+      <section id="homeView" class="view active">
+        <div class="home-actions">
+          <button class="home-btn" data-go="recoverView">Recover a memory</button>
+          <button class="home-btn" data-go="memoryNetView">Open memory net</button>
+        </div>
+      </section>
 
-        <aside class="detail-panel">
-          <h2>Detail Panel</h2>
-          <div id="detailContent" class="detail-content">
-            <p class="muted">Click a memory item to inspect details and add a note.</p>
+      <section id="recoverView" class="view">
+        <div class="view-head">
+          <button class="ghost-btn" data-go="homeView">← Home</button>
+          <div class="compact-row">
+            <label for="recoverType" class="sr-only">Recovery type</label>
+            <select id="recoverType">
+              <option>object</option>
+              <option>song</option>
+              <option>location</option>
+              <option>name</option>
+              <option>phrase</option>
+              <option>lost thought</option>
+              <option>other</option>
+            </select>
+            <input id="recoverCue" type="text" placeholder="Optional cue" />
           </div>
-        </aside>
-      </main>
+        </div>
 
-      <footer class="status-strip" id="statusStrip" aria-live="polite">
-        <span>selected: none</span>
-        <span>tracked items: 0</span>
-        <span>avg speed: 0.00 px/ms</span>
-        <span>slow-zone events: 0</span>
-      </footer>
+        <main class="layout">
+          <section class="field-panel">
+            <div id="recoverField" class="memory-field" aria-label="Recover field">
+              <svg id="recoverLinkLayer" class="link-layer" aria-hidden="true"></svg>
+            </div>
+          </section>
+
+          <aside class="side-panel">
+            <section class="subpanel">
+              <h2>Candidates</h2>
+              <div id="candidateList" class="candidate-list"></div>
+            </section>
+
+            <section id="recoverDetail" class="subpanel detail-panel">
+              <p class="muted">Select a candidate.</p>
+            </section>
+
+            <details class="subpanel">
+              <summary>Experiment details</summary>
+              <div id="recoverTelemetry" class="tiny-grid"></div>
+            </details>
+          </aside>
+        </main>
+      </section>
+
+      <section id="memoryNetView" class="view">
+        <div class="view-head">
+          <button class="ghost-btn" data-go="homeView">← Home</button>
+        </div>
+
+        <main class="layout">
+          <section class="field-panel">
+            <div id="netField" class="memory-field" aria-label="Memory net field">
+              <svg id="netLinkLayer" class="link-layer" aria-hidden="true"></svg>
+            </div>
+          </section>
+
+          <aside class="side-panel">
+            <section class="subpanel">
+              <h2>Add memory</h2>
+              <form id="memoryForm" class="stack-form">
+                <input id="memTitle" required placeholder="Title" />
+                <textarea id="memFragment" required placeholder="Memory"></textarea>
+                <input id="memTags" placeholder="Tags (comma separated)" />
+                <input id="memThread" placeholder="Thread" />
+                <input id="memCategory" placeholder="Category" />
+                <button type="submit">Save</button>
+              </form>
+            </section>
+
+            <section class="subpanel">
+              <h2>Saved</h2>
+              <div id="memoryList" class="candidate-list"></div>
+            </section>
+
+            <section id="netDetail" class="subpanel detail-panel">
+              <p class="muted">Select a memory.</p>
+            </section>
+          </aside>
+        </main>
+      </section>
     </div>
 
     <script src="app.js"></script>
