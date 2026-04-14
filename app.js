@@ -5,26 +5,100 @@ const config = {
   movement: { proximityRadiusPx: 120, dwellThresholdMs: 1200, slowSpeedThresholdPxPerMs: 0.22 },
   scoring: { dwellBonus: 1.2, revisitBonus: 0.45, slowBonus: 0.9, recencyBonus: 0.7, cueBonus: 1, linkBonus: 0.7, tagBonus: 0.55 },
   storage: {
-    memoriesKey: 'memorygate_memories',
-    nodesKey: 'memorygate_nodes',
-    sessionsKey: 'memorygate_sessions',
-    settingsKey: 'memorygate_settings',
+    profilesKey: 'memorygate_profiles',
+    activeProfileKey: 'memorygate_active_profile',
+    userDataPrefix: 'memorygate_user_data',
   },
 };
 
-const store = {
-  loadJson(key, fallback) {
+const storageEngine = {
+  getItem(key) { return localStorage.getItem(key); },
+  setItem(key, value) { localStorage.setItem(key, value); },
+  removeItem(key) { localStorage.removeItem(key); },
+};
+
+const createLocalProfileAuthRepository = (engine, cfg) => ({
+  loadProfiles() {
     try {
-      const raw = localStorage.getItem(key);
-      return raw ? JSON.parse(raw) : fallback;
+      return JSON.parse(engine.getItem(cfg.storage.profilesKey) || '[]');
     } catch {
-      return fallback;
+      return [];
     }
   },
-  saveJson(key, value) {
-    localStorage.setItem(key, JSON.stringify(value));
+  saveProfiles(profiles) {
+    engine.setItem(cfg.storage.profilesKey, JSON.stringify(profiles));
   },
-};
+  listProfiles() {
+    return this.loadProfiles().sort((a, b) => a.name.localeCompare(b.name));
+  },
+  createProfile(name) {
+    const normalized = name.trim().replace(/\s+/g, ' ');
+    if (!normalized) throw new Error('Profile name is required.');
+    const profiles = this.loadProfiles();
+    const exists = profiles.some((p) => p.name.toLowerCase() === normalized.toLowerCase());
+    if (exists) throw new Error('That profile already exists.');
+    const profile = { id: uid('usr'), name: normalized, createdAt: nowIso() };
+    profiles.push(profile);
+    this.saveProfiles(profiles);
+    this.setActiveProfileId(profile.id);
+    return profile;
+  },
+  setActiveProfileId(profileId) {
+    if (!profileId) {
+      engine.removeItem(cfg.storage.activeProfileKey);
+      return;
+    }
+    engine.setItem(cfg.storage.activeProfileKey, profileId);
+  },
+  getActiveProfileId() {
+    return engine.getItem(cfg.storage.activeProfileKey);
+  },
+  getActiveProfile() {
+    const id = this.getActiveProfileId();
+    if (!id) return null;
+    return this.loadProfiles().find((profile) => profile.id === id) || null;
+  },
+  signIn(profileId) {
+    const profile = this.loadProfiles().find((item) => item.id === profileId);
+    if (!profile) throw new Error('Profile not found.');
+    this.setActiveProfileId(profile.id);
+    return profile;
+  },
+  signOut() {
+    this.setActiveProfileId(null);
+  },
+});
+
+const createNamespacedMemoryRepository = (engine, cfg) => ({
+  key(userId) {
+    return `${cfg.storage.userDataPrefix}:${userId}`;
+  },
+  loadUserData(userId) {
+    if (!userId) return defaultUserData();
+    try {
+      const raw = engine.getItem(this.key(userId));
+      return raw ? { ...defaultUserData(), ...JSON.parse(raw) } : defaultUserData();
+    } catch {
+      return defaultUserData();
+    }
+  },
+  saveUserData(userId, payload) {
+    if (!userId) return;
+    engine.setItem(this.key(userId), JSON.stringify(payload));
+  },
+});
+
+const authRepository = createLocalProfileAuthRepository(storageEngine, config);
+const memoryRepository = createNamespacedMemoryRepository(storageEngine, config);
+
+function defaultUserData() {
+  return {
+    nodes: [],
+    memories: [],
+    sessions: [],
+    settings: { pointerSlowThreshold: 0.22, recoverLimit: 10 },
+  };
+}
 
 const state = {
   route: 'home',
@@ -33,26 +107,35 @@ const state = {
   recencyDays: 'all',
   selectedId: null,
   editingId: null,
-  nodes: store.loadJson(config.storage.nodesKey, []),
-  memories: store.loadJson(config.storage.memoriesKey, []),
-  sessions: store.loadJson(config.storage.sessionsKey, []),
-  settings: { pointerSlowThreshold: 0.22, recoverLimit: 10, ...store.loadJson(config.storage.settingsKey, {}) },
+  currentUser: null,
+  profiles: [],
+  nodes: [],
+  memories: [],
+  sessions: [],
+  settings: { pointerSlowThreshold: 0.22, recoverLimit: 10 },
   session: null,
   movement: { lastX: null, lastY: null, lastTimestamp: null, avgSpeed: 0, sampleCount: 0 },
   metricsById: {},
   positions: {},
 };
 
-config.movement.slowSpeedThresholdPxPerMs = state.settings.pointerSlowThreshold;
-
 const el = {
   pages: {
+    auth: document.getElementById('authPage'),
     home: document.getElementById('homePage'),
     recover: document.getElementById('recoverPage'),
     memoryNet: document.getElementById('memoryNetPage'),
     timeline: document.getElementById('timelinePage'),
     settings: document.getElementById('settingsPage'),
   },
+  userMenu: document.getElementById('userMenu'),
+  currentUserLabel: document.getElementById('currentUserLabel'),
+  signOutBtn: document.getElementById('signOutBtn'),
+  signInForm: document.getElementById('signInForm'),
+  signInProfileSelect: document.getElementById('signInProfileSelect'),
+  createProfileForm: document.getElementById('createProfileForm'),
+  createProfileName: document.getElementById('createProfileName'),
+  authFeedback: document.getElementById('authFeedback'),
   typeSelector: document.getElementById('typeSelector'),
   cueInput: document.getElementById('cueInput'),
   recencyFilter: document.getElementById('recencyFilter'),
@@ -87,12 +170,42 @@ const memoryNodes = () => state.nodes.filter((n) => n.nodeType === 'memory');
 const eventNodes = () => state.nodes.filter((n) => n.nodeType === 'event');
 const byId = (id) => state.nodes.find((n) => n.id === id);
 
+function isAuthenticated() {
+  return Boolean(state.currentUser);
+}
+
+function setAuthFeedback(message) {
+  el.authFeedback.textContent = message || '';
+}
+
+function resetTransientState() {
+  state.selectedId = null;
+  state.editingId = null;
+  state.session = null;
+  state.metricsById = {};
+  state.positions = {};
+  state.movement = { lastX: null, lastY: null, lastTimestamp: null, avgSpeed: 0, sampleCount: 0 };
+  el.editorForm.classList.add('hidden');
+}
+
+function loadCurrentUserData() {
+  const data = memoryRepository.loadUserData(state.currentUser?.id);
+  state.nodes = data.nodes || [];
+  state.memories = data.memories || [];
+  state.sessions = data.sessions || [];
+  state.settings = { pointerSlowThreshold: 0.22, recoverLimit: 10, ...(data.settings || {}) };
+  config.movement.slowSpeedThresholdPxPerMs = state.settings.pointerSlowThreshold;
+}
+
 function persistAll() {
+  if (!isAuthenticated()) return;
   state.memories = memoryNodes();
-  store.saveJson(config.storage.nodesKey, state.nodes);
-  store.saveJson(config.storage.memoriesKey, state.memories);
-  store.saveJson(config.storage.sessionsKey, state.sessions);
-  store.saveJson(config.storage.settingsKey, state.settings);
+  memoryRepository.saveUserData(state.currentUser.id, {
+    nodes: state.nodes,
+    memories: state.memories,
+    sessions: state.sessions,
+    settings: state.settings,
+  });
 }
 
 function ensureModel() {
@@ -110,14 +223,19 @@ function ensureModel() {
 }
 
 function setRoute(route) {
+  if (!isAuthenticated()) route = 'auth';
   const prev = state.route;
   state.route = route;
   if (prev !== 'recover' && route === 'recover') state.session = { startedAt: nowIso(), selectedNode: null, dwellPerNode: {}, revisitCounts: {}, sessionDurationMs: 0, recallPath: [], retrievalOutcome: 'Partly' };
   if (prev === 'recover' && route !== 'recover' && state.session) finalizeSession();
 
   Object.entries(el.pages).forEach(([key, page]) => page.classList.toggle('hidden', (key === 'memoryNet' ? 'memory-net' : key) !== route));
-  document.querySelectorAll('.nav-btn').forEach((btn) => btn.classList.toggle('is-active', btn.dataset.route === route));
-  location.hash = route;
+  document.querySelectorAll('.nav-btn').forEach((btn) => {
+    const disabled = !isAuthenticated();
+    btn.disabled = disabled;
+    btn.classList.toggle('is-active', btn.dataset.route === route && !disabled);
+  });
+  if (route !== 'auth') location.hash = route;
 }
 
 function ageDays(timestamp) { return (Date.now() - new Date(timestamp || nowIso()).getTime()) / 86400000; }
@@ -178,6 +296,7 @@ function renderLinks(svg, sourceNodes, inRecover = false) {
 function nodeLabel(node) { return node.title || node.label || 'Untitled'; }
 
 function renderRecover() {
+  if (!isAuthenticated()) return;
   const candidates = topRecoverCandidates();
   el.recoverZone.querySelectorAll('.graph-node').forEach((n) => n.remove());
   candidates.forEach((node) => {
@@ -232,6 +351,7 @@ function selectNode(id) {
 }
 
 function renderMemoryNet() {
+  if (!isAuthenticated()) return;
   el.nodeList.innerHTML = '';
   el.netField.querySelectorAll('.graph-node').forEach((n) => n.remove());
   allNodes().forEach((node) => {
@@ -263,6 +383,7 @@ function renderMemoryNet() {
 }
 
 function renderTimeline() {
+  if (!isAuthenticated()) return;
   const events = eventNodes().sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
   el.eventTimeline.innerHTML = events.map((event) => `<button type="button" class="node-item" data-event="${event.id}"><strong>${event.title}</strong><div class="muted">${new Date(event.startTime).toLocaleString()}</div></button>`).join('') || '<p class="muted">No events yet.</p>';
 
@@ -336,6 +457,7 @@ function finalizeSession() {
 }
 
 function onRecoverMove(event) {
+  if (!isAuthenticated()) return;
   const b = el.recoverZone.getBoundingClientRect();
   const x = event.clientX - b.left;
   const y = event.clientY - b.top;
@@ -374,6 +496,45 @@ function onRecoverMove(event) {
   renderRecover();
 }
 
+function renderAuth() {
+  state.profiles = authRepository.listProfiles();
+  el.signInProfileSelect.innerHTML = '<option value="">Select profile</option>' + state.profiles.map((profile) => `<option value="${profile.id}">${profile.name}</option>`).join('');
+  el.signInForm.querySelector('button[type="submit"]').disabled = state.profiles.length === 0;
+  if (state.profiles.length === 0) setAuthFeedback('Create your first profile to start.');
+}
+
+function onSignedIn(profile) {
+  state.currentUser = profile;
+  resetTransientState();
+  loadCurrentUserData();
+  ensureModel();
+  el.currentUserLabel.textContent = `Signed in as ${profile.name}`;
+  el.userMenu.classList.remove('hidden');
+  renderMemoryNet();
+  renderRecover();
+  renderTimeline();
+  setAuthFeedback('');
+  const valid = ['home', 'recover', 'memory-net', 'timeline', 'settings'];
+  const route = location.hash.replace('#', '');
+  setRoute(valid.includes(route) ? route : 'home');
+  el.slowThresholdInput.value = state.settings.pointerSlowThreshold;
+  el.nodeLimitInput.value = state.settings.recoverLimit;
+}
+
+function signOut() {
+  if (state.route === 'recover' && state.session) finalizeSession();
+  authRepository.signOut();
+  state.currentUser = null;
+  state.nodes = [];
+  state.memories = [];
+  state.sessions = [];
+  state.settings = { pointerSlowThreshold: 0.22, recoverLimit: 10 };
+  resetTransientState();
+  el.userMenu.classList.add('hidden');
+  setRoute('auth');
+  renderAuth();
+}
+
 function wireEvents() {
   document.querySelectorAll('[data-route]').forEach((btn) => btn.addEventListener('click', () => setRoute(btn.dataset.route)));
 
@@ -393,6 +554,30 @@ function wireEvents() {
 
   el.memoryForm.memoryType.innerHTML = '<option value="">memory type</option>' + NODE_TYPES.filter((type) => !['memory', 'event'].includes(type)).map((type) => `<option value="${type}">${type}</option>`).join('');
   el.anchorForm.nodeType.innerHTML = '<option value="">anchor type</option>' + NODE_TYPES.filter((type) => !['memory', 'event'].includes(type)).map((type) => `<option value="${type}">${type}</option>`).join('') + '<option value="date">date</option>';
+
+  el.createProfileForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    try {
+      const profile = authRepository.createProfile(el.createProfileName.value);
+      el.createProfileName.value = '';
+      renderAuth();
+      onSignedIn(profile);
+    } catch (err) {
+      setAuthFeedback(err.message || 'Could not create profile.');
+    }
+  });
+
+  el.signInForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    try {
+      const profile = authRepository.signIn(el.signInProfileSelect.value);
+      onSignedIn(profile);
+    } catch (err) {
+      setAuthFeedback(err.message || 'Could not sign in.');
+    }
+  });
+
+  el.signOutBtn.addEventListener('click', () => signOut());
 
   el.cueInput.addEventListener('input', () => { state.cue = el.cueInput.value; renderRecover(); });
   el.recencyFilter.addEventListener('change', () => { state.recencyDays = el.recencyFilter.value; renderRecover(); });
@@ -465,8 +650,6 @@ function wireEvents() {
     btn.classList.add('is-active');
   }));
 
-  el.slowThresholdInput.value = state.settings.pointerSlowThreshold;
-  el.nodeLimitInput.value = state.settings.recoverLimit;
   el.saveSettingsBtn.addEventListener('click', () => {
     state.settings.pointerSlowThreshold = Number(el.slowThresholdInput.value) || 0.22;
     state.settings.recoverLimit = Number(el.nodeLimitInput.value) || 10;
@@ -477,14 +660,11 @@ function wireEvents() {
 }
 
 function init() {
-  ensureModel();
   wireEvents();
-  renderMemoryNet();
-  renderRecover();
-  renderTimeline();
-  const valid = ['home', 'recover', 'memory-net', 'timeline', 'settings'];
-  const route = location.hash.replace('#', '');
-  setRoute(valid.includes(route) ? route : 'home');
+  renderAuth();
+  const current = authRepository.getActiveProfile();
+  if (current) onSignedIn(current);
+  else setRoute('auth');
 }
 
 init();
