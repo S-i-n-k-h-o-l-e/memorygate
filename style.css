@@ -27,7 +27,26 @@ body {
   margin-bottom: 1rem;
 }
 
+.top-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .top-nav { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+.user-menu {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.user-label {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
 
 button,
 input,
@@ -42,6 +61,7 @@ select {
 
 button { cursor: pointer; }
 button:hover, button.is-active { border-color: #9fd4ff; background: #1b3451; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 h1, h2, h3 { margin-top: 0; }
 
@@ -52,7 +72,16 @@ h1, h2, h3 { margin-top: 0; }
   background: rgba(10, 17, 28, 0.9);
 }
 
-.page.hidden { display: none; }
+.page.hidden,
+.hidden { display: none !important; }
+
+.auth-layout {
+  max-width: 920px;
+  margin: 8vh auto;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr 1fr;
+}
 
 .home-grid {
   min-height: 76vh;
@@ -163,5 +192,6 @@ textarea { min-height: 70px; resize: vertical; }
   .recover-layout,
   .net-layout,
   .timeline-layout,
-  .home-grid { grid-template-columns: 1fr; }
+  .home-grid,
+  .auth-layout { grid-template-columns: 1fr; }
 }

@@ -10,15 +10,44 @@
     <div class="app-shell">
       <header class="top-bar">
         <h1>MemoryGate</h1>
-        <nav class="top-nav" aria-label="Primary">
-          <button type="button" data-route="home" class="nav-btn">Home</button>
-          <button type="button" data-route="recover" class="nav-btn">Recover</button>
-          <button type="button" data-route="memory-net" class="nav-btn">Memory Net</button>
-          <button type="button" data-route="timeline" class="nav-btn">Timeline</button>
-        </nav>
+        <div class="top-bar-right">
+          <nav class="top-nav" aria-label="Primary">
+            <button type="button" data-route="home" class="nav-btn">Home</button>
+            <button type="button" data-route="recover" class="nav-btn">Recover</button>
+            <button type="button" data-route="memory-net" class="nav-btn">Memory Net</button>
+            <button type="button" data-route="timeline" class="nav-btn">Timeline</button>
+          </nav>
+          <div id="userMenu" class="user-menu hidden" aria-live="polite">
+            <span id="currentUserLabel" class="user-label"></span>
+            <button id="signOutBtn" type="button">Sign out</button>
+          </div>
+        </div>
       </header>
 
       <main>
+        <section id="authPage" class="page hidden">
+          <div class="auth-layout">
+            <section class="panel">
+              <h2>Sign in</h2>
+              <form id="signInForm" class="stack-form">
+                <select id="signInProfileSelect" required>
+                  <option value="">Select profile</option>
+                </select>
+                <button type="submit">Sign in</button>
+              </form>
+            </section>
+
+            <section class="panel">
+              <h2>Create profile</h2>
+              <form id="createProfileForm" class="stack-form">
+                <input id="createProfileName" required type="text" maxlength="40" placeholder="Profile name" />
+                <button type="submit">Create profile</button>
+              </form>
+              <p id="authFeedback" class="muted"></p>
+            </section>
+          </div>
+        </section>
+
         <section id="homePage" class="page">
           <div class="home-grid">
             <button type="button" class="home-option" data-route="recover">Recover</button>
