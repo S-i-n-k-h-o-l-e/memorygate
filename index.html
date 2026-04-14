@@ -14,108 +14,164 @@
           <button type="button" data-route="home" class="nav-btn">Home</button>
           <button type="button" data-route="recover" class="nav-btn">Recover</button>
           <button type="button" data-route="memory-net" class="nav-btn">Memory Net</button>
+          <button type="button" data-route="timeline" class="nav-btn">Timeline</button>
         </nav>
       </header>
 
       <main>
         <section id="homePage" class="page">
           <div class="home-grid">
-            <button type="button" class="home-option" data-route="recover">Recover a memory</button>
+            <button type="button" class="home-option" data-route="recover">Recover</button>
             <button type="button" class="home-option" data-route="memory-net">Memory Net</button>
+            <button type="button" class="home-option" data-route="timeline">Timeline</button>
+            <button type="button" class="home-option" data-route="settings">Settings</button>
           </div>
         </section>
 
         <section id="recoverPage" class="page hidden">
           <div class="recover-controls panel">
-            <div id="typeSelector" class="type-selector" role="group" aria-label="Recovery type">
-              <button type="button" data-type="object">object</button>
-              <button type="button" data-type="song">song</button>
-              <button type="button" data-type="location">location</button>
-              <button type="button" data-type="name">name</button>
-              <button type="button" data-type="phrase">phrase</button>
-              <button type="button" data-type="thought">thought</button>
-              <button type="button" data-type="other">other</button>
-            </div>
-            <label class="visually-hidden" for="cueInput">Optional cue</label>
-            <input id="cueInput" type="text" placeholder="Optional cue" />
+            <div id="typeSelector" class="type-selector" role="group" aria-label="Cue type selector"></div>
+            <input id="cueInput" type="text" placeholder="Cue" />
+            <select id="recencyFilter">
+              <option value="all">Any time</option>
+              <option value="7">Last 7 days</option>
+              <option value="30">Last 30 days</option>
+              <option value="90">Last 90 days</option>
+            </select>
           </div>
 
           <div class="recover-layout">
             <section class="panel">
-              <textarea id="retrievalField" class="retrieval-field" placeholder="What are you trying to recover right now?"></textarea>
-              <div id="recoverZone" class="recover-zone" aria-label="Movement retrieval zone">
+              <div id="recoverZone" class="graph-field" aria-label="Movement-led candidate field">
                 <svg id="recoverLinks" class="link-layer" aria-hidden="true"></svg>
               </div>
+              <div id="candidateStrip" class="candidate-strip"></div>
             </section>
 
             <aside class="panel right-col">
-              <section>
-                <h2>Candidates</h2>
-                <div id="candidateList" class="candidate-list"></div>
-              </section>
-
               <section id="recoverDetail" class="detail-panel">
-                <p class="muted">Select a candidate.</p>
+                <p class="muted">Select a node.</p>
               </section>
-
               <section>
-                <h2>Recall cascade</h2>
+                <h3>Recall cascade</h3>
                 <div id="cascadeList" class="candidate-list"></div>
               </section>
-
+              <section>
+                <h3>Session outcome</h3>
+                <div class="outcome-row">
+                  <button type="button" class="outcome-btn" data-outcome="No">No</button>
+                  <button type="button" class="outcome-btn" data-outcome="Partly">Partly</button>
+                  <button type="button" class="outcome-btn" data-outcome="Yes">Yes</button>
+                </div>
+              </section>
               <details>
-                <summary>Why this surfaced</summary>
+                <summary>Advanced telemetry</summary>
                 <div id="recoverTelemetry" class="telemetry"></div>
               </details>
-
-              <div class="outcome-row">
-                <button type="button" class="outcome-btn" data-outcome="No">No</button>
-                <button type="button" class="outcome-btn" data-outcome="Partly">Partly</button>
-                <button type="button" class="outcome-btn" data-outcome="Yes">Yes</button>
-              </div>
             </aside>
           </div>
         </section>
 
         <section id="memoryNetPage" class="page hidden">
           <div class="net-layout">
-            <section class="panel">
+            <section class="panel forms-col">
               <h2>Add memory</h2>
-              <form id="memoryForm" class="memory-form">
-                <input id="memoryTitle" required type="text" placeholder="Title" />
-                <textarea id="memoryFragment" required placeholder="Fragment"></textarea>
-                <select id="memoryType" required>
-                  <option value="">Type</option>
-                  <option value="object">object</option>
-                  <option value="song">song</option>
-                  <option value="location">location</option>
-                  <option value="name">name</option>
-                  <option value="phrase">phrase</option>
-                  <option value="thought">thought</option>
-                  <option value="other">other</option>
+              <form id="memoryForm" class="stack-form">
+                <input name="title" required type="text" placeholder="Title" />
+                <textarea name="fragment" required placeholder="Fragment"></textarea>
+                <select name="memoryType" required>
+                  <option value="">memory type</option>
                 </select>
-                <input id="memoryTags" type="text" placeholder="tags (comma separated)" />
-                <input id="memoryThread" type="text" placeholder="thread" />
-                <input id="anchorObject" type="text" placeholder="anchor object(s)" />
-                <input id="anchorSong" type="text" placeholder="anchor song(s)" />
-                <input id="anchorLocation" type="text" placeholder="anchor location(s)" />
-                <input id="anchorPerson" type="text" placeholder="anchor person(s)" />
-                <input id="anchorPhrase" type="text" placeholder="anchor phrase(s)" />
-                <textarea id="memoryNotes" placeholder="notes"></textarea>
-                <button type="submit">Save</button>
+                <input name="tags" type="text" placeholder="tags (comma separated)" />
+                <input name="thread" type="text" placeholder="thread" />
+                <textarea name="notes" placeholder="notes"></textarea>
+                <button type="submit">Save memory</button>
+              </form>
+
+              <h2>Add anchor</h2>
+              <form id="anchorForm" class="stack-form">
+                <select name="nodeType" required>
+                  <option value="">anchor type</option>
+                </select>
+                <input name="label" required type="text" placeholder="Label" />
+                <input name="tags" type="text" placeholder="tags" />
+                <button type="submit">Save anchor</button>
+              </form>
+
+              <h2>Add event</h2>
+              <form id="eventForm" class="stack-form">
+                <input name="title" required type="text" placeholder="Event title" />
+                <input name="startTime" required type="datetime-local" />
+                <input name="endTime" type="datetime-local" />
+                <input name="location" type="text" placeholder="Location" />
+                <input name="people" type="text" placeholder="People (comma separated)" />
+                <textarea name="notes" placeholder="Notes"></textarea>
+                <button type="submit">Save event</button>
               </form>
             </section>
 
             <section class="panel">
-              <h2>Memory field</h2>
-              <div id="netField" class="net-field"></div>
+              <h2>Memory Net</h2>
+              <div id="netField" class="graph-field">
+                <svg id="netLinks" class="link-layer" aria-hidden="true"></svg>
+              </div>
             </section>
 
-            <section class="panel">
-              <h2>Stored memories</h2>
-              <div id="memoryList" class="memory-list"></div>
+            <section class="panel editor-col">
+              <h2>Node list</h2>
+              <div id="nodeList" class="node-list"></div>
+
+              <h2>Selected editor</h2>
+              <form id="editorForm" class="stack-form hidden">
+                <input name="title" type="text" placeholder="Title / Label" />
+                <textarea name="fragment" placeholder="Fragment / Notes"></textarea>
+                <input name="tags" type="text" placeholder="tags" />
+                <input name="thread" type="text" placeholder="thread" />
+                <textarea name="notes" placeholder="notes"></textarea>
+                <button type="submit">Update node</button>
+                <button type="button" id="deleteNodeBtn" class="danger">Delete node</button>
+              </form>
+
+              <h2>Link nodes</h2>
+              <form id="linkForm" class="stack-form">
+                <select name="sourceId" required></select>
+                <select name="targetId" required></select>
+                <button type="submit">Create link</button>
+              </form>
             </section>
           </div>
+        </section>
+
+        <section id="timelinePage" class="page hidden">
+          <div class="timeline-layout">
+            <section class="panel">
+              <h2>Events</h2>
+              <div id="eventTimeline" class="timeline-list"></div>
+            </section>
+            <section class="panel">
+              <h2>Date clusters</h2>
+              <div id="dateClusters" class="timeline-list"></div>
+            </section>
+            <section class="panel">
+              <h2>Linked memories</h2>
+              <div id="timelineDetail" class="detail-panel"><p class="muted">Select an event or date.</p></div>
+            </section>
+          </div>
+        </section>
+
+        <section id="settingsPage" class="page hidden">
+          <section class="panel settings-panel">
+            <h2>Settings</h2>
+            <label>
+              Pointer slow threshold
+              <input id="slowThresholdInput" type="number" step="0.01" min="0.01" max="2" />
+            </label>
+            <label>
+              Recover node limit
+              <input id="nodeLimitInput" type="number" min="4" max="24" />
+            </label>
+            <button type="button" id="saveSettingsBtn">Save settings</button>
+          </section>
         </section>
       </main>
     </div>

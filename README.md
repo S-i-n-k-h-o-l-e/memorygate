@@ -1,112 +1,163 @@
 # MemoryGate
 
-MemoryGate is a static GitHub Pages-compatible personal memory system built with plain HTML, CSS, and vanilla JavaScript.
+MemoryGate is a **persistent personal memory graph and recovery system** built for static hosting (GitHub Pages friendly).
 
-## What changed in V2
+- Plain HTML
+- Plain CSS
+- Vanilla JavaScript
+- No framework
+- No build step
+- No backend
 
-MemoryGate now works as a persistent user memory archive instead of a static prototype.
+## Product structure
 
-- **Memory Net stores your own memories locally** (create, edit, delete, link).
-- **Recover reads from stored memories only** (no static/mock memory dataset).
-- **Movement-based ranking** (dwell, revisit, slow movement) helps surface likely matches.
-- **Recall cascade** supports anchor → related → next exploration.
-- **Session logging** stores recall behavior and outcomes.
+MemoryGate now has 4 main views:
 
-## App structure
+1. **Home**
+2. **Recover**
+3. **Memory Net**
+4. **Timeline**
 
-### 1) Home
-Minimal launcher with only:
-- Recover a memory
-- Memory Net
+## Core model: graph-first memory
 
-### 2) Recover
-Recovery flow:
+MemoryGate stores linked nodes, not isolated cards.
 
-`stored memories → cue filter → movement ranking → candidate selection → recall cascade`
+Supported node types:
 
-UI includes:
-- recovery type selector
-- optional cue input
-- retrieval field
-- candidate panel
-- detail panel
-- recall cascade panel
-- optional "Why this surfaced" details
+- `memory`
+- `person`
+- `place`
+- `object`
+- `song`
+- `phrase`
+- `event`
+- `date`
 
-Recover filters and ranks based on:
-- type
-- cue overlap across title/fragment/tags/anchors/thread/notes
-- anchor/tags data
-- recency
-- movement signals (dwell, revisit, slow-zone)
-
-### 3) Memory Net
-Storage and browse flow:
-
-`add memory → store locally → retrieve later in Recover`
-
-Each memory uses this model:
+### Memory node
 
 ```js
 {
-  id: string,
-  title: string,
-  fragment: string,
-  type: string, // object, song, location, name, phrase, thought, other
-  timestamp: string,
-  tags: string[],
-  thread: string,
-  anchors: {
-    object: string[],
-    song: string[],
-    location: string[],
-    person: string[],
-    phrase: string[]
-  },
-  linkedIds: string[],
-  notes: string
+  id,
+  nodeType: "memory",
+  title,
+  fragment,
+  memoryType,
+  createdAt,
+  rememberedAt,
+  tags,
+  thread,
+  linkedNodeIds,
+  notes,
+  sourceType,
+  sourceRef
 }
 ```
 
-## Local storage keys
+### Anchor node
 
-- `memorygate_memories`: persistent memory archive
-- `memorygate_sessions`: recovery session logs
+```js
+{
+  id,
+  nodeType,
+  label,
+  tags,
+  linkedNodeIds
+}
+```
 
-Session logs include:
-- selected memory
-- dwell stats
+### Event node
+
+```js
+{
+  id,
+  nodeType: "event",
+  title,
+  startTime,
+  endTime,
+  location,
+  people,
+  notes,
+  linkedNodeIds,
+  sourceType: "manual" | "calendar_import"
+}
+```
+
+## View behavior
+
+### Home
+Minimal launcher: Recover, Memory Net, Timeline, Settings.
+
+### Recover
+Recover operates over saved user graph data.
+
+- Cue type selector
+- Cue input
+- Optional recency filter
+- Movement-led candidate field
+- Compact candidate strip
+- Detail drawer for selected node
+- Recall cascade (linked nodes)
+- Hidden-by-default advanced telemetry
+
+Ranking combines:
+
+- cue overlap
+- tag overlap
+- recency
+- graph links
+- movement signals (dwell, revisit, slow movement)
+
+Mouse movement remains the proxy for future eye tracking.
+
+### Memory Net
+Memory Net is where users build and manage graph structure.
+
+- Add memory nodes
+- Add anchor nodes
+- Add event nodes
+- Edit nodes
+- Delete nodes
+- Link nodes bidirectionally
+- Browse as a network field
+
+### Timeline
+Timeline offers time/event-based access.
+
+- Event timeline
+- Date clusters from saved memory nodes
+- Click event/date to reveal linked memories/nodes
+
+## Persistence keys
+
+The app stores data in browser storage with an adapter design that can be upgraded to IndexedDB later.
+
+- `memorygate_memories`
+- `memorygate_nodes`
+- `memorygate_sessions`
+- `memorygate_settings`
+
+## Session logging
+
+Recover sessions log:
+
+- selected node
+- dwell per node
 - revisit counts
 - session duration
 - recall path
-- retrieval outcome (`No`, `Partly`, `Yes`)
+- retrieval outcome
 
-## Why localStorage now, and IndexedDB later
+## Calendar direction
 
-### Current choice: localStorage (V1 persistence)
-- easy to implement in a fully static app
-- good for small/medium personal memory archives
-- GitHub Pages friendly
+Current implementation is calendar-ready, not full live calendar sync.
 
-### Upgrade path: IndexedDB
-Move to IndexedDB when the archive grows and you need:
-- larger capacity
-- indexed/queryable structured records
-- non-blocking async storage
+- Event nodes are first-class
+- Manual event creation is supported
+- `sourceType` supports future imports (`manual` / `calendar_import`)
 
-The storage logic is isolated in store adapters (`memoryStore`, `sessionStore`) so replacing localStorage with IndexedDB can happen without a full UI rewrite.
-
-## Future cloud sync extension
-
-To extend beyond local-only storage later:
-1. keep the same memory/session data model
-2. add an optional sync adapter (REST/API or edge function)
-3. use local-first conflict handling (local write, then sync)
-4. keep Recover ranking local so retrieval works offline
+Live Google Calendar auth/sync is a future extension.
 
 ## Run locally
-
-Open `index.html` directly, or run:
 
 ```bash
 python3 -m http.server 8000
@@ -114,10 +165,6 @@ python3 -m http.server 8000
 
 Then open <http://localhost:8000>.
 
-## Deploy with GitHub Pages
+## Deploy
 
-1. Push repository to GitHub.
-2. Open **Settings → Pages**.
-3. Deploy from the repository root on the default branch.
-
-No build step is required.
+Deploy repository root directly with GitHub Pages. No build step required.
