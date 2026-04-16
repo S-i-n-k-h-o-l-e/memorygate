@@ -1,13 +1,15 @@
 const NODE_TYPES = ['memory', 'person', 'place', 'object', 'song', 'event'];
-const CUE_TYPES = ['object', 'song', 'place', 'person', 'date/time', 'event', 'other'];
 
 const config = {
-  movement: { proximityRadiusPx: 120, dwellThresholdMs: 1200, slowSpeedThresholdPxPerMs: 0.22 },
-  scoring: { dwellBonus: 1.2, revisitBonus: 0.45, slowBonus: 0.9, recencyBonus: 0.7, cueBonus: 1, linkBonus: 0.7, tagBonus: 0.55 },
   storage: {
     profilesKey: 'memorygate_profiles',
     activeProfileKey: 'memorygate_active_profile',
     userDataPrefix: 'memorygate_user_data',
+  },
+  recover: {
+    dwellMs: 1700,
+    minWords: 20,
+    maxWords: 34,
   },
 };
 
@@ -65,9 +67,6 @@ function defaultUserData() {
 
 const state = {
   route: 'memory-net',
-  cueType: 'object',
-  cue: '',
-  recencyDays: 'all',
   selectedId: null,
   currentUser: null,
   profiles: [],
@@ -75,10 +74,16 @@ const state = {
   memories: [],
   sessions: [],
   settings: { pointerSlowThreshold: 0.22, recoverLimit: 10 },
-  session: null,
-  movement: { lastX: null, lastY: null, lastTimestamp: null, avgSpeed: 0, sampleCount: 0 },
-  metricsById: {},
   positions: {},
+  recover: {
+    seed: '',
+    history: [],
+    engine: null,
+    clouds: [],
+    hoverTimer: null,
+    hoverWord: null,
+    previewNodeId: null,
+  },
 };
 
 const el = {
@@ -97,15 +102,10 @@ const el = {
   createProfileForm: document.getElementById('createProfileForm'),
   createProfileName: document.getElementById('createProfileName'),
   authFeedback: document.getElementById('authFeedback'),
-  typeSelector: document.getElementById('typeSelector'),
-  cueInput: document.getElementById('cueInput'),
-  recencyFilter: document.getElementById('recencyFilter'),
+  recoverInput: document.getElementById('recoverInput'),
+  recoverTrail: document.getElementById('recoverTrail'),
   recoverZone: document.getElementById('recoverZone'),
-  recoverLinks: document.getElementById('recoverLinks'),
-  candidateStrip: document.getElementById('candidateStrip'),
-  recoverDetail: document.getElementById('recoverDetail'),
-  cascadeList: document.getElementById('cascadeList'),
-  recoverTelemetry: document.getElementById('recoverTelemetry'),
+  recoverPreview: document.getElementById('recoverPreview'),
   netField: document.getElementById('netField'),
   netLinks: document.getElementById('netLinks'),
   nodeDetailPanel: document.getElementById('nodeDetailPanel'),
@@ -148,10 +148,8 @@ function setAuthFeedback(message) { el.authFeedback.textContent = message || '';
 
 function resetTransientState() {
   state.selectedId = null;
-  state.session = null;
-  state.metricsById = {};
   state.positions = {};
-  state.movement = { lastX: null, lastY: null, lastTimestamp: null, avgSpeed: 0, sampleCount: 0 };
+  state.recover = { seed: '', history: [], engine: null, clouds: [], hoverTimer: null, hoverWord: null, previewNodeId: null };
   el.nodeDetailPanel.classList.add('hidden');
 }
 
@@ -161,7 +159,6 @@ function loadCurrentUserData() {
   state.memories = data.memories || [];
   state.sessions = data.sessions || [];
   state.settings = { pointerSlowThreshold: 0.22, recoverLimit: 10, ...(data.settings || {}) };
-  config.movement.slowSpeedThresholdPxPerMs = state.settings.pointerSlowThreshold;
 }
 
 function persistAll() {
@@ -178,57 +175,20 @@ function ensureModel() {
     ...node,
     date: node.date || node.rememberedAt || node.createdAt || todayString(),
   }));
-  state.nodes.forEach((node) => {
-    if (!state.metricsById[node.id]) state.metricsById[node.id] = { dwellMs: 0, revisitCount: 0, slowNearMs: 0, inferredScore: 0.4, isNear: false, wasNear: false };
-  });
   computeNetLayout();
+  state.recover.engine = null;
   persistAll();
 }
 
 function setRoute(route) {
   if (!isAuthenticated()) route = 'auth';
-  const prev = state.route;
   state.route = route;
-  if (prev !== 'recover' && route === 'recover') state.session = { startedAt: nowIso(), selectedNode: null, dwellPerNode: {}, revisitCounts: {}, sessionDurationMs: 0, recallPath: [], retrievalOutcome: 'Partly' };
-  if (prev === 'recover' && route !== 'recover' && state.session) finalizeSession();
-
   Object.entries(el.pages).forEach(([key, page]) => page.classList.toggle('hidden', (key === 'memoryNet' ? 'memory-net' : key) !== route));
   document.querySelectorAll('.nav-btn').forEach((btn) => {
     btn.disabled = !isAuthenticated();
     btn.classList.toggle('is-active', btn.dataset.route === route && isAuthenticated());
   });
   if (route !== 'auth') location.hash = route;
-}
-
-function ageDays(timestamp) { return (Date.now() - new Date(timestamp || nowIso()).getTime()) / 86400000; }
-function searchableText(node) { return [node.title, node.label, node.fragment, node.notes, (node.tags || []).join(' '), node.nodeType].join(' ').toLowerCase(); }
-
-function recoverPool() {
-  const cue = state.cue.toLowerCase().trim();
-  return state.nodes.filter((node) => {
-    const cueTypeMatch = state.cueType === 'date/time' ? node.nodeType === 'event' || node.nodeType === 'memory' : node.nodeType === state.cueType || state.cueType === 'other';
-    const cueTextMatch = !cue || searchableText(node).includes(cue);
-    const recencyMatch = state.recencyDays === 'all' || ageDays(nodeDateIso(node)) <= Number(state.recencyDays);
-    return cueTypeMatch && cueTextMatch && recencyMatch;
-  });
-}
-
-function scoreNode(node) {
-  const metric = state.metricsById[node.id];
-  const cue = state.cue.toLowerCase().trim();
-  const cueMatch = cue && searchableText(node).includes(cue) ? 1 : 0;
-  const recencyFactor = Math.max(0, 1 - ageDays(nodeDateIso(node)) / 90);
-  const selected = byId(state.selectedId);
-  const linkedMatch = selected && ((selected.linkedNodeIds || []).includes(node.id) || (node.linkedNodeIds || []).includes(selected.id)) ? 1 : 0;
-  const tagMatch = cue && (node.tags || []).some((tag) => tag.toLowerCase().includes(cue)) ? 1 : 0;
-  const movement = (metric.dwellMs / config.movement.dwellThresholdMs) * config.scoring.dwellBonus + metric.revisitCount * config.scoring.revisitBonus + (metric.slowNearMs / config.movement.dwellThresholdMs) * config.scoring.slowBonus;
-  const retrieval = cueMatch * config.scoring.cueBonus + recencyFactor * config.scoring.recencyBonus + linkedMatch * config.scoring.linkBonus + tagMatch * config.scoring.tagBonus;
-  metric.inferredScore = metric.inferredScore * 0.68 + (movement + retrieval) * 0.32;
-  return metric.inferredScore;
-}
-
-function topRecoverCandidates() {
-  return recoverPool().map((node) => ({ node, score: scoreNode(node) })).sort((a, b) => b.score - a.score).slice(0, state.settings.recoverLimit).map((x) => x.node);
 }
 
 function computeNetLayout() {
@@ -249,59 +209,16 @@ function computeNetLayout() {
     const jitter = (((idx * 37) % 17) - 8) * 0.6;
     state.positions[node.id] = { x, y: 10 + band * 80 + jitter };
   });
-
-  for (let i = 0; i < 80; i += 1) {
-    const forces = Object.fromEntries(nodes.map((n) => [n.id, { x: 0, y: 0 }]));
-    for (let a = 0; a < nodes.length; a += 1) {
-      for (let b = a + 1; b < nodes.length; b += 1) {
-        const na = nodes[a];
-        const nb = nodes[b];
-        const pa = state.positions[na.id];
-        const pb = state.positions[nb.id];
-        const dx = pa.x - pb.x;
-        const dy = pa.y - pb.y;
-        const dist = Math.max(Math.hypot(dx, dy), 0.01);
-        if (dist < 12) {
-          const repel = (12 - dist) * 0.07;
-          const ux = dx / dist;
-          const uy = dy / dist;
-          forces[na.id].x += ux * repel;
-          forces[na.id].y += uy * repel;
-          forces[nb.id].x -= ux * repel;
-          forces[nb.id].y -= uy * repel;
-        }
-      }
-    }
-
-    nodes.forEach((node) => {
-      const from = state.positions[node.id];
-      (node.linkedNodeIds || []).forEach((targetId) => {
-        const to = state.positions[targetId];
-        if (!to) return;
-        const dx = to.x - from.x;
-        const dy = to.y - from.y;
-        forces[node.id].x += dx * 0.004;
-        forces[node.id].y += dy * 0.004;
-      });
-    });
-
-    nodes.forEach((node) => {
-      const p = state.positions[node.id];
-      p.x = Math.min(95, Math.max(5, p.x + forces[node.id].x));
-      p.y = Math.min(93, Math.max(7, p.y + forces[node.id].y));
-    });
-  }
 }
 
-function renderLinks(svg, sourceNodes, inRecover = false) {
+function renderLinks(svg, sourceNodes) {
   const selected = byId(state.selectedId);
   const selectedLinks = new Set([...(selected?.linkedNodeIds || []), selected?.id]);
   svg.innerHTML = '';
   sourceNodes.forEach((source) => {
     (source.linkedNodeIds || []).forEach((targetId) => {
       const target = byId(targetId);
-      if (!target) return;
-      if (inRecover && !sourceNodes.some((n) => n.id === targetId)) return;
+      if (!target || !sourceNodes.some((n) => n.id === targetId)) return;
       const from = state.positions[source.id];
       const to = state.positions[target.id];
       if (!from || !to) return;
@@ -360,55 +277,263 @@ function renderMemoryNet() {
     });
     el.netField.appendChild(btn);
   });
-  renderLinks(el.netLinks, state.nodes, false);
 
+  renderLinks(el.netLinks, state.nodes);
   el.memoryForm.linkToId.innerHTML = '<option value="">Optional link</option>' + state.nodes.map((n) => `<option value="${n.id}">${nodeLabel(n)} (${n.nodeType})</option>`).join('');
   if (!selected) el.nodeDetailPanel.classList.add('hidden');
 }
 
-function renderRecover() {
-  if (!isAuthenticated()) return;
-  const candidates = topRecoverCandidates();
-  el.recoverZone.querySelectorAll('.graph-node').forEach((n) => n.remove());
-  candidates.forEach((node) => {
-    const pos = state.positions[node.id];
+const STOP_WORDS = new Set(['the', 'and', 'for', 'with', 'that', 'this', 'from', 'your', 'have', 'about', 'into', 'were', 'been', 'there', 'after', 'before', 'then', 'when', 'what', 'where', 'while', 'just', 'over', 'under', 'them', 'they', 'you', 'our', 'his', 'her', 'its', 'was', 'are', 'but', 'not', 'too', 'very', 'also', 'did', 'had', 'has', 'all', 'any', 'off', 'out', 'one', 'two', 'she', 'him', 'who', 'why', 'how']);
+
+const CONTEXT_HINTS = {
+  train: ['station', 'platform', 'ticket', 'window', 'rush', 'coffee', 'commute', 'arrival', 'track'],
+  notebook: ['margin', 'ink', 'scribble', 'lecture', 'desk', 'paper', 'idea', 'list', 'sketch'],
+  sketch: ['pencil', 'eraser', 'outline', 'shade', 'canvas', 'studio', 'gesture', 'draft', 'shape'],
+  kitchen: ['kettle', 'counter', 'spice', 'sink', 'fridge', 'morning', 'recipe', 'steam', 'warmth'],
+  beach: ['sand', 'salt', 'towel', 'waves', 'breeze', 'sunset', 'footprints', 'boardwalk', 'shell'],
+};
+
+function tokenize(text) {
+  return (text || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s']/g, ' ')
+    .split(/\s+/)
+    .map((w) => w.trim())
+    .filter((w) => w.length > 2 && !STOP_WORDS.has(w));
+}
+
+function getRecoverEngine() {
+  if (state.recover.engine) return state.recover.engine;
+  const neighbors = new Map();
+  const memoryHits = new Map();
+  const nodeWords = new Map();
+
+  state.nodes.forEach((node) => {
+    const anchors = Array.isArray(node.anchors) ? node.anchors.join(' ') : '';
+    const words = Array.from(new Set(tokenize(`${node.title || ''} ${node.fragment || ''} ${(node.tags || []).join(' ')} ${anchors}`))).slice(0, 30);
+    nodeWords.set(node.id, words);
+    words.forEach((word) => {
+      if (!memoryHits.has(word)) memoryHits.set(word, []);
+      memoryHits.get(word).push(node.id);
+    });
+    for (let i = 0; i < words.length; i += 1) {
+      for (let j = i + 1; j < words.length; j += 1) {
+        const a = words[i];
+        const b = words[j];
+        if (!neighbors.has(a)) neighbors.set(a, new Map());
+        if (!neighbors.has(b)) neighbors.set(b, new Map());
+        neighbors.get(a).set(b, (neighbors.get(a).get(b) || 0) + 1);
+        neighbors.get(b).set(a, (neighbors.get(b).get(a) || 0) + 1);
+      }
+    }
+  });
+
+  state.recover.engine = { neighbors, memoryHits, nodeWords };
+  return state.recover.engine;
+}
+
+function pickAssociationWords(seed) {
+  const cleanSeed = tokenize(seed)[0] || seed.toLowerCase().trim();
+  const engine = getRecoverEngine();
+  const weighted = new Map();
+  const direct = engine.neighbors.get(cleanSeed) || new Map();
+
+  direct.forEach((value, word) => weighted.set(word, (weighted.get(word) || 0) + value * 2.4));
+
+  (CONTEXT_HINTS[cleanSeed] || []).forEach((word, i) => weighted.set(word, (weighted.get(word) || 0) + (1.8 - i * 0.1)));
+
+  (engine.memoryHits.get(cleanSeed) || []).slice(0, 8).forEach((nodeId) => {
+    (engine.nodeWords.get(nodeId) || []).forEach((word, idx) => {
+      if (word === cleanSeed) return;
+      weighted.set(word, (weighted.get(word) || 0) + Math.max(0.3, 1.4 - idx * 0.05));
+    });
+  });
+
+  if (weighted.size < config.recover.minWords) {
+    engine.neighbors.forEach((_links, word) => {
+      if (word.startsWith(cleanSeed.slice(0, 2)) && word !== cleanSeed) weighted.set(word, (weighted.get(word) || 0) + 0.55);
+    });
+  }
+
+  const results = Array.from(weighted.entries())
+    .map(([word, score]) => {
+      const memoryIds = engine.memoryHits.get(word) || [];
+      return {
+        word,
+        score: score + Math.min(2.5, memoryIds.length * 0.45),
+        memoryIds,
+      };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, config.recover.maxWords);
+
+  if (!results.length) {
+    return [{ word: cleanSeed, score: 2, memoryIds: engine.memoryHits.get(cleanSeed) || [] }];
+  }
+
+  return results;
+}
+
+function makeCloudLayout(items) {
+  const width = el.recoverZone.clientWidth || 900;
+  const height = el.recoverZone.clientHeight || 520;
+  const maxScore = Math.max(...items.map((i) => i.score));
+  const placed = [];
+
+  items.forEach((item, idx) => {
+    const strength = item.score / maxScore;
+    const fontSize = 14 + Math.round(strength * 14);
+    const itemWidth = Math.max(56, item.word.length * (fontSize * 0.56));
+    const itemHeight = fontSize + 14;
+    const baseRadius = 40 + (1 - strength) * (Math.min(width, height) * 0.36);
+    const cluster = idx % 4;
+    const clusterAngle = (Math.PI / 2) * cluster + (Math.random() - 0.5) * 0.45;
+
+    let best = null;
+    for (let attempt = 0; attempt < 90; attempt += 1) {
+      const angle = clusterAngle + (Math.random() - 0.5) * Math.PI * (0.35 + attempt / 80);
+      const radius = baseRadius + (Math.random() - 0.5) * 28 + attempt * 0.75;
+      const x = width / 2 + Math.cos(angle) * radius;
+      const y = height / 2 + Math.sin(angle) * radius;
+      const box = { x: x - itemWidth / 2, y: y - itemHeight / 2, w: itemWidth, h: itemHeight };
+      if (box.x < 8 || box.y < 8 || box.x + box.w > width - 8 || box.y + box.h > height - 8) continue;
+      const overlap = placed.some((p) => !(box.x + box.w < p.x || box.x > p.x + p.w || box.y + box.h < p.y || box.y > p.y + p.h));
+      if (!overlap) {
+        best = { x, y, box };
+        break;
+      }
+      if (!best) best = { x, y, box };
+    }
+
+    const finalPick = best || { x: width / 2, y: height / 2, box: { x: width / 2 - itemWidth / 2, y: height / 2 - itemHeight / 2, w: itemWidth, h: itemHeight } };
+    placed.push(finalPick.box);
+    item.x = (finalPick.x / width) * 100;
+    item.y = (finalPick.y / height) * 100;
+    item.fontSize = fontSize;
+    item.strength = strength;
+  });
+
+  return items;
+}
+
+function clearRecoverHover() {
+  if (state.recover.hoverTimer) clearTimeout(state.recover.hoverTimer);
+  state.recover.hoverTimer = null;
+  state.recover.hoverWord = null;
+}
+
+function showRecoverPreview(nodeId) {
+  const node = byId(nodeId);
+  state.recover.previewNodeId = node?.id || null;
+  if (!node) {
+    el.recoverPreview.innerHTML = '<span class="muted">Memory previews appear here when associations match your saved nodes.</span>';
+    return;
+  }
+  const snippet = (node.fragment || '').slice(0, 140);
+  el.recoverPreview.innerHTML = `<div><strong>${nodeLabel(node)}</strong> <span class="muted">${node.nodeType}</span></div><div class="muted">${snippet}${(node.fragment || '').length > 140 ? '…' : ''}</div><button type="button" id="openPreviewMemoryBtn">Open memory</button>`;
+  const openBtn = document.getElementById('openPreviewMemoryBtn');
+  openBtn?.addEventListener('click', () => {
+    openNodeDetail(node.id);
+    setRoute('memory-net');
+    renderMemoryNet();
+  });
+}
+
+function renderBreadcrumbs() {
+  el.recoverTrail.innerHTML = '';
+  if (!state.recover.history.length) {
+    el.recoverTrail.innerHTML = '<span class="muted">Start with one word and press Enter.</span>';
+    return;
+  }
+  state.recover.history.forEach((word, idx) => {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = `graph-node ${node.nodeType}`;
-    if (state.selectedId === node.id) btn.classList.add('active');
-    btn.style.left = `${pos.x}%`;
-    btn.style.top = `${pos.y}%`;
-    btn.innerHTML = `<strong>${nodeLabel(node)}</strong><div class="node-date">${formatShortDate(nodeDateIso(node))}</div>`;
-    btn.addEventListener('click', () => selectRecoverNode(node.id));
-    el.recoverZone.appendChild(btn);
+    btn.className = 'recover-crumb';
+    btn.textContent = word;
+    btn.addEventListener('click', () => {
+      const nextHistory = state.recover.history.slice(0, idx + 1);
+      state.recover.history = nextHistory;
+      generateRecoverCloud(word, { updateHistory: false });
+    });
+    el.recoverTrail.appendChild(btn);
+    if (idx < state.recover.history.length - 1) {
+      const sep = document.createElement('span');
+      sep.className = 'muted';
+      sep.textContent = '→';
+      el.recoverTrail.appendChild(sep);
+    }
   });
-  renderLinks(el.recoverLinks, candidates, true);
-  el.candidateStrip.innerHTML = candidates.map((n) => `<button type="button" class="candidate-pill" data-pick="${n.id}">${nodeLabel(n)}</button>`).join('') || '<p class="muted">No saved nodes match this cue yet.</p>';
-  el.candidateStrip.querySelectorAll('button[data-pick]').forEach((btn) => btn.addEventListener('click', () => selectRecoverNode(btn.dataset.pick)));
+}
 
-  const selected = byId(state.selectedId);
-  if (!selected) {
-    el.recoverDetail.innerHTML = '<p class="muted">Select a node.</p>';
-    el.cascadeList.innerHTML = '<p class="muted">Select a node to see linked paths.</p>';
+function generateRecoverCloud(seedWord, { updateHistory = true } = {}) {
+  const cleanSeed = tokenize(seedWord)[0] || seedWord.trim().toLowerCase();
+  if (!cleanSeed) return;
+  clearRecoverHover();
+  state.recover.seed = cleanSeed;
+  if (updateHistory) {
+    if (!state.recover.history.length || state.recover.history[state.recover.history.length - 1] !== cleanSeed) {
+      state.recover.history.push(cleanSeed);
+    }
+  }
+
+  const base = pickAssociationWords(cleanSeed).slice(0, Math.max(config.recover.minWords, config.recover.maxWords - 2));
+  const cloudWords = [{ word: cleanSeed, score: (base[0]?.score || 2) + 1.6, memoryIds: getRecoverEngine().memoryHits.get(cleanSeed) || [], isSeed: true }, ...base.filter((w) => w.word !== cleanSeed)].slice(0, config.recover.maxWords);
+  const layout = makeCloudLayout(cloudWords);
+
+  state.recover.clouds = [{ seed: cleanSeed, words: layout, createdAt: Date.now() }, ...state.recover.clouds.slice(0, 1)];
+  renderRecover();
+}
+
+function renderRecoverCloudLayer(cloud, isCurrent) {
+  const layer = document.createElement('div');
+  layer.className = `recover-cloud-layer ${isCurrent ? 'is-current' : 'is-previous'}`;
+
+  cloud.words.forEach((entry) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'recover-word';
+    if (entry.isSeed) btn.classList.add('seed-word');
+    if (entry.memoryIds.length) btn.classList.add('memory-hit');
+    btn.textContent = entry.word;
+    btn.style.left = `${entry.x}%`;
+    btn.style.top = `${entry.y}%`;
+    btn.style.fontSize = `${entry.fontSize}px`;
+    btn.style.opacity = `${0.55 + entry.strength * 0.45}`;
+
+    if (isCurrent) {
+      btn.addEventListener('mouseenter', () => {
+        clearRecoverHover();
+        state.recover.hoverWord = entry.word;
+        state.recover.hoverTimer = setTimeout(() => {
+          if (state.recover.hoverWord === entry.word) generateRecoverCloud(entry.word);
+        }, config.recover.dwellMs);
+      });
+      btn.addEventListener('mouseleave', clearRecoverHover);
+      btn.addEventListener('click', () => {
+        generateRecoverCloud(entry.word);
+        if (entry.memoryIds.length) showRecoverPreview(entry.memoryIds[0]);
+      });
+    }
+
+    layer.appendChild(btn);
+  });
+  return layer;
+}
+
+function renderRecover() {
+  if (!isAuthenticated()) return;
+  renderBreadcrumbs();
+  if (!state.recover.clouds.length) {
+    el.recoverZone.innerHTML = '<div class="recover-empty muted">Enter one word and press Enter to begin a recall cascade.</div>';
+    showRecoverPreview(null);
     return;
   }
 
-  el.recoverDetail.innerHTML = `<strong>${nodeLabel(selected)}</strong><div class="muted">${selected.nodeType} · ${formatShortDate(nodeDateIso(selected))}</div><p>${selected.fragment || selected.notes || ''}</p><p class="muted">tags: ${(selected.tags || []).join(', ') || 'none'}</p>`;
-  const cascade = (selected.linkedNodeIds || []).map(byId).filter(Boolean).slice(0, 8);
-  el.cascadeList.innerHTML = cascade.map((n) => `<button type="button" class="candidate-pill" data-cascade="${n.id}">${nodeLabel(n)}</button>`).join('') || '<p class="muted">No linked nodes yet.</p>';
-  el.cascadeList.querySelectorAll('button[data-cascade]').forEach((btn) => btn.addEventListener('click', () => selectRecoverNode(btn.dataset.cascade)));
-
-  const metric = state.metricsById[selected.id];
-  el.recoverTelemetry.innerHTML = `<div>Current score: ${metric.inferredScore.toFixed(2)}</div><div>Avg pointer speed: ${state.movement.avgSpeed.toFixed(2)} px/ms</div>`;
-}
-
-function selectRecoverNode(id) {
-  state.selectedId = id;
-  if (state.session) {
-    state.session.selectedNode = id;
-    if (!state.session.recallPath.length || state.session.recallPath[state.session.recallPath.length - 1] !== id) state.session.recallPath.push(id);
-  }
-  renderRecover();
+  el.recoverZone.innerHTML = '';
+  state.recover.clouds.slice().reverse().forEach((cloud, idx, arr) => {
+    const isCurrent = idx === arr.length - 1;
+    el.recoverZone.appendChild(renderRecoverCloudLayer(cloud, isCurrent));
+  });
 }
 
 function renderTimeline() {
@@ -464,58 +589,6 @@ function deleteNode(id) {
   renderTimeline();
 }
 
-function finalizeSession() {
-  state.session.sessionDurationMs = Math.max(0, Date.now() - new Date(state.session.startedAt).getTime());
-  Object.entries(state.metricsById).forEach(([id, metric]) => {
-    if (metric.dwellMs > 0) state.session.dwellPerNode[id] = Math.round(metric.dwellMs);
-    if (metric.revisitCount > 0) state.session.revisitCounts[id] = metric.revisitCount;
-  });
-  state.session.endedAt = nowIso();
-  state.sessions.push(state.session);
-  state.session = null;
-  persistAll();
-}
-
-function onRecoverMove(event) {
-  if (!isAuthenticated()) return;
-  const b = el.recoverZone.getBoundingClientRect();
-  const x = event.clientX - b.left;
-  const y = event.clientY - b.top;
-  if (x < 0 || y < 0 || x > b.width || y > b.height) return;
-
-  const now = performance.now();
-  let dt = 0;
-  let speed = 0;
-  if (state.movement.lastTimestamp != null) {
-    dt = now - state.movement.lastTimestamp;
-    const dx = x - state.movement.lastX;
-    const dy = y - state.movement.lastY;
-    speed = dt > 0 ? Math.hypot(dx, dy) / dt : 0;
-    state.movement.sampleCount += 1;
-    state.movement.avgSpeed += (speed - state.movement.avgSpeed) / state.movement.sampleCount;
-  }
-  state.movement.lastX = x;
-  state.movement.lastY = y;
-  state.movement.lastTimestamp = now;
-
-  topRecoverCandidates().forEach((node) => {
-    const pos = state.positions[node.id];
-    const metric = state.metricsById[node.id];
-    const nx = (pos.x / 100) * b.width;
-    const ny = (pos.y / 100) * b.height;
-    const dist = Math.hypot(x - nx, y - ny);
-    metric.wasNear = metric.isNear;
-    metric.isNear = dist <= config.movement.proximityRadiusPx;
-    if (metric.isNear && dt > 0) {
-      metric.dwellMs += dt;
-      if (speed > 0 && speed < config.movement.slowSpeedThresholdPxPerMs) metric.slowNearMs += dt;
-    }
-    if (!metric.wasNear && metric.isNear) metric.revisitCount += 1;
-  });
-
-  renderRecover();
-}
-
 function renderAuth() {
   state.profiles = authRepository.listProfiles();
   el.signInProfileSelect.innerHTML = '<option value="">Select profile</option>' + state.profiles.map((profile) => `<option value="${profile.id}">${profile.name}</option>`).join('');
@@ -542,7 +615,6 @@ function onSignedIn(profile) {
 }
 
 function signOut() {
-  if (state.route === 'recover' && state.session) finalizeSession();
   authRepository.signOut();
   state.currentUser = null;
   state.nodes = [];
@@ -557,20 +629,6 @@ function signOut() {
 
 function wireEvents() {
   document.querySelectorAll('[data-route]').forEach((btn) => btn.addEventListener('click', () => setRoute(btn.dataset.route)));
-
-  CUE_TYPES.forEach((type) => {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.textContent = type;
-    button.classList.toggle('is-active', type === state.cueType);
-    button.addEventListener('click', () => {
-      state.cueType = type;
-      el.typeSelector.querySelectorAll('button').forEach((b) => b.classList.remove('is-active'));
-      button.classList.add('is-active');
-      renderRecover();
-    });
-    el.typeSelector.appendChild(button);
-  });
 
   el.memoryForm.memoryType.innerHTML = '<option value="">Type</option>' + NODE_TYPES.map((type) => `<option value="${type}">${type}</option>`).join('');
   el.memoryForm.date.value = todayString();
@@ -598,8 +656,11 @@ function wireEvents() {
   });
   el.cancelComposerBtn.addEventListener('click', () => el.memoryComposer.close());
 
-  el.cueInput.addEventListener('input', () => { state.cue = el.cueInput.value; renderRecover(); });
-  el.recencyFilter.addEventListener('change', () => { state.recencyDays = el.recencyFilter.value; renderRecover(); });
+  el.recoverInput.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    generateRecoverCloud(el.recoverInput.value, { updateHistory: true });
+  });
 
   el.memoryForm.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -668,19 +729,9 @@ function wireEvents() {
     persistAll();
   });
 
-  el.recoverZone.addEventListener('mousemove', onRecoverMove);
-  window.addEventListener('mouseleave', () => { state.movement.lastTimestamp = null; });
-
-  document.querySelectorAll('.outcome-btn').forEach((btn) => btn.addEventListener('click', () => {
-    if (state.session) state.session.retrievalOutcome = btn.dataset.outcome;
-    document.querySelectorAll('.outcome-btn').forEach((b) => b.classList.remove('is-active'));
-    btn.classList.add('is-active');
-  }));
-
   el.saveSettingsBtn.addEventListener('click', () => {
     state.settings.pointerSlowThreshold = Number(el.slowThresholdInput.value) || 0.22;
     state.settings.recoverLimit = Number(el.nodeLimitInput.value) || 10;
-    config.movement.slowSpeedThresholdPxPerMs = state.settings.pointerSlowThreshold;
     persistAll();
     renderRecover();
   });

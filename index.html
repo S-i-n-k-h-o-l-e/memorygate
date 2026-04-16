@@ -49,46 +49,11 @@
         </section>
 
         <section id="recoverPage" class="page hidden">
-          <div class="recover-controls panel">
-            <div id="typeSelector" class="type-selector" role="group" aria-label="Cue type selector"></div>
-            <input id="cueInput" type="text" placeholder="Cue" />
-            <select id="recencyFilter">
-              <option value="all">Any time</option>
-              <option value="7">Last 7 days</option>
-              <option value="30">Last 30 days</option>
-              <option value="90">Last 90 days</option>
-            </select>
-          </div>
-
-          <div class="recover-layout">
-            <section class="panel">
-              <div id="recoverZone" class="graph-field" aria-label="Movement-led candidate field">
-                <svg id="recoverLinks" class="link-layer" aria-hidden="true"></svg>
-              </div>
-              <div id="candidateStrip" class="candidate-strip"></div>
-            </section>
-
-            <aside class="panel right-col">
-              <section id="recoverDetail" class="detail-panel">
-                <p class="muted">Select a node.</p>
-              </section>
-              <section>
-                <h3>Recall cascade</h3>
-                <div id="cascadeList" class="candidate-list"></div>
-              </section>
-              <section>
-                <h3>Session outcome</h3>
-                <div class="outcome-row">
-                  <button type="button" class="outcome-btn" data-outcome="No">No</button>
-                  <button type="button" class="outcome-btn" data-outcome="Partly">Partly</button>
-                  <button type="button" class="outcome-btn" data-outcome="Yes">Yes</button>
-                </div>
-              </section>
-              <details>
-                <summary>Advanced telemetry</summary>
-                <div id="recoverTelemetry" class="telemetry"></div>
-              </details>
-            </aside>
+          <div class="recover-minimal panel">
+            <input id="recoverInput" type="text" placeholder="Enter one word and press Enter" autocomplete="off" />
+            <div id="recoverTrail" class="recover-trail" aria-live="polite"></div>
+            <div id="recoverZone" class="recover-zone" aria-label="Word association cloud"></div>
+            <div id="recoverPreview" class="recover-preview"></div>
           </div>
         </section>
 
