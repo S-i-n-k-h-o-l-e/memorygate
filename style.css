@@ -107,3 +107,109 @@ textarea { min-height: 78px; resize: vertical; }
   .recover-layout, .net-layout, .timeline-layout, .auth-layout { grid-template-columns: 1fr; }
   .graph-field-large { min-height: 56vh; }
 }
+
+.recover-minimal {
+  display: grid;
+  gap: 0.7rem;
+  padding: 0.9rem;
+}
+
+#recoverInput {
+  max-width: 420px;
+  font-size: 1rem;
+  background: rgba(14, 26, 40, 0.95);
+}
+
+.recover-trail {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  min-height: 1.8rem;
+}
+
+.recover-crumb {
+  border-radius: 999px;
+  padding: 0.22rem 0.6rem;
+  border-color: #385a7a;
+  background: rgba(19, 35, 55, 0.85);
+  font-size: 0.85rem;
+}
+
+.recover-zone {
+  min-height: 65vh;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  position: relative;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 30%, rgba(44, 66, 92, 0.26), rgba(6, 10, 16, 0.97) 62%);
+}
+
+.recover-cloud-layer {
+  position: absolute;
+  inset: 0;
+  transition: opacity 220ms ease;
+}
+
+.recover-cloud-layer.is-current {
+  opacity: 1;
+}
+
+.recover-cloud-layer.is-previous {
+  opacity: 0.33;
+  filter: saturate(0.8);
+}
+
+.recover-word {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  border: 0;
+  background: transparent;
+  color: #dcebff;
+  letter-spacing: 0.02em;
+  text-shadow: 0 0 12px rgba(122, 192, 255, 0.22);
+  white-space: nowrap;
+  padding: 0.05rem 0.22rem;
+  border-radius: 6px;
+  animation: recoverFadeIn 220ms ease;
+}
+
+.recover-word:hover {
+  color: #f4f9ff;
+  text-shadow: 0 0 16px rgba(169, 222, 255, 0.5);
+}
+
+.recover-word.seed-word {
+  color: #ffffff;
+  text-shadow: 0 0 18px rgba(180, 225, 255, 0.7);
+}
+
+.recover-word.memory-hit {
+  text-decoration: underline;
+  text-decoration-color: rgba(128, 209, 255, 0.45);
+  text-underline-offset: 0.2em;
+}
+
+.recover-preview {
+  min-height: 62px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  padding: 0.55rem 0.7rem;
+  background: rgba(11, 19, 31, 0.88);
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.92rem;
+}
+
+.recover-empty {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+
+@keyframes recoverFadeIn {
+  from { opacity: 0; transform: translate(-50%, -44%); }
+  to { opacity: 1; transform: translate(-50%, -50%); }
+}
