@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Squint v10 QuadMapper — Distance Analysis Update</title>
+  <style>
+    :root {
+      --bg: #0c111b;
+      --panel: #131b2a;
+      --panel-alt: #1b2436;
+      --text: #e5ecf6;
+      --muted: #9fb0cb;
+      --accent: #58b3ff;
+      --accent-2: #50d2c2;
+      --danger: #f36f73;
+      --ok: #6ed690;
+      --line: #2a3854;
+      --font: Inter, Segoe UI, Roboto, Arial, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      color: var(--text);
+      background: radial-gradient(circle at top right, #152441 0%, var(--bg) 40%);
+    }
+    .app {
+      display: grid;
+      grid-template-columns: minmax(480px, 1.15fr) minmax(420px, 0.85fr);
+      gap: 14px;
+      min-height: 100vh;
+      padding: 14px;
+    }
+    .panel {
+      background: linear-gradient(180deg, var(--panel), #111a2a);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.28);
+    }
+    h1,h2,h3 { margin: 0 0 8px; font-weight: 600; }
+    h1 { font-size: 1.2rem; }
+    h2 { font-size: 1rem; color: #cfe0fb; }
+    h3 { font-size: 0.92rem; color: #bbd1f5; }
+    .muted { color: var(--muted); font-size: 0.85rem; }
+    .left, .right { display: grid; gap: 12px; align-content: start; }
+    .toolbar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 8px;
+      align-items: end;
+    }
+    label { display: grid; gap: 4px; font-size: 0.8rem; color: #b4c8e9; }
+    input, select, button {
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #0f1727;
+      color: var(--text);
+      padding: 8px;
+      font-size: 0.86rem;
+    }
+    button {
+      cursor: pointer;
+      background: linear-gradient(180deg, #193155, #132443);
+    }
+    button:hover { border-color: #3f5f8f; }
+    button.danger { background: linear-gradient(180deg, #4f1f26, #3b1820); border-color: #6a2c35; }
+    .viewer-wrap { position: relative; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); background: #04070f; }
+    canvas#mapCanvas { width: 100%; height: auto; display: block; max-height: 58vh; object-fit: contain; cursor: crosshair; }
+    canvas#overlayCanvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+    .status-row { display: flex; justify-content: space-between; gap: 10px; margin-top: 8px; font-size: 0.8rem; color: var(--muted); }
+    .inspector { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.78rem; color: #d1def4; }
+    .analysis-grid { display: grid; gap: 8px; }
+    .series-list { display: grid; gap: 6px; max-height: 220px; overflow: auto; padding-right: 4px; }
+    .series-item {
+      border: 1px solid var(--line);
+      background: var(--panel-alt);
+      border-radius: 10px;
+      padding: 8px;
+      display: grid;
+      grid-template-columns: 46px minmax(120px,1fr) repeat(3,auto);
+      gap: 8px;
+      align-items: center;
+    }
+    .thumb { width: 44px; height: 44px; border-radius: 8px; border: 1px solid #314263; background: #0b1220; object-fit: cover; }
+    .filename { font-size: 0.81rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .distance-input { width: 88px; }
+    .series-controls { display: flex; gap: 4px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+    th, td { border-bottom: 1px solid #25344e; padding: 5px 6px; text-align: left; }
+    th { color: #aecdff; background: #111b30; position: sticky; top: 0; }
+    .table-wrap { max-height: 190px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
+    #plotCanvas { width: 100%; height: 260px; display: block; border: 1px solid var(--line); border-radius: 10px; background: #0d1422; }
+    .warn { color: #ffd486; font-size: 0.82rem; }
+    .ok { color: var(--ok); }
+    .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+    .chip { border: 1px solid #2f4265; border-radius: 999px; padding: 2px 8px; font-size: 0.74rem; color: #b8cdf4; }
+    @media (max-width: 1180px) {
+      .app { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <section class="left">
+      <section class="panel">
+        <h1>Squint — Polarization Viewer</h1>
+        <p class="muted">Single-image workflow remains active. Distance analysis appears in the panel on the right.</p>
+        <div class="toolbar">
+          <label>Upload polarized images (.raw, .png, .jpg)
+            <input id="fileInput" type="file" accept=".raw,image/*" multiple />
+          </label>
+          <label>RAW width
+            <input id="rawWidth" type="number" min="2" step="2" value="1024" />
+          </label>
+          <label>RAW height
+            <input id="rawHeight" type="number" min="2" step="2" value="1024" />
+          </label>
+          <label>Map
+            <select id="mapMode">
+              <option value="intensity">Intensity</option>
+              <option value="dolp">DoLP</option>
+              <option value="aop">AoP</option>
+            </select>
+          </label>
+          <label>Display scale
+            <select id="displayScale">
+              <option value="linear">Linear</option>
+              <option value="sqrt">Sqrt</option>
+            </select>
+          </label>
+          <label>ROI tool
+            <select id="activeRoiSelect">
+              <option value="A">ROI A (target)</option>
+              <option value="B">ROI B / background</option>
+            </select>
+          </label>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="viewer-wrap">
+          <canvas id="mapCanvas" width="900" height="600"></canvas>
+          <canvas id="overlayCanvas" width="900" height="600"></canvas>
+        </div>
+        <div class="status-row">
+          <div id="imageStatus">No image loaded.</div>
+          <div id="dimWarning" class="warn"></div>
+        </div>
+        <div class="inspector" id="hoverInspector">x: -, y: -, I: -, DoLP: -, AoP: -</div>
+      </section>
+    </section>
+
+    <section class="right">
+      <section class="panel analysis-grid">
+        <h2>Distance Analysis Panel</h2>
+        <div class="toolbar">
+          <label>Distance unit
+            <select id="distanceUnit">
+              <option value="m">m</option>
+              <option value="cm">cm</option>
+              <option value="mm">mm</option>
+            </select>
+          </label>
+          <label>Baseline image
+            <select id="baselineSelect"></select>
+          </label>
+          <label>Contrast mode
+            <select id="contrastMode">
+              <option value="michelson">Michelson (A-B)/(A+B)</option>
+              <option value="difference">Absolute difference |A-B|</option>
+              <option value="percentDrop">Percent drop from baseline</option>
+              <option value="normalized">Normalized to baseline A/A0</option>
+            </select>
+          </label>
+          <label>Plot metric
+            <select id="plotMetric">
+              <option value="meanIntensityA">Mean intensity (ROI A)</option>
+              <option value="meanDoLPA">Mean DoLP (ROI A)</option>
+              <option value="aopVarA">AoP variability (ROI A)</option>
+              <option value="contrastIntensity">Intensity contrast (A vs B)</option>
+              <option value="contrastDoLP">DoLP contrast (A vs B)</option>
+              <option value="normIntensityA">Normalized intensity (ROI A)</option>
+              <option value="normDoLPA">Normalized DoLP (ROI A)</option>
+            </select>
+          </label>
+          <button id="sortByDistanceBtn" type="button">Sort by distance</button>
+          <button id="copyRoiBtn" type="button">Copy ROI to all</button>
+          <button id="exportCsvBtn" type="button">Export CSV</button>
+          <button id="exportPlotBtn" type="button">Export plot PNG</button>
+        </div>
+
+        <div class="chips">
+          <span class="chip">Draw ROI by dragging on viewer</span>
+          <span class="chip">Shift = constrain square</span>
+          <span class="chip">Metric formulas are modular</span>
+        </div>
+
+        <h3>Image Series Manager</h3>
+        <div id="seriesList" class="series-list"></div>
+
+        <h3>ROI Statistics per image</h3>
+        <div class="table-wrap">
+          <table id="statsTable">
+            <thead>
+              <tr>
+                <th>File</th><th>Dist</th><th>ROI</th><th>Mean I</th><th>Std I</th><th>Mean DoLP</th><th>Std DoLP</th><th>Mean AoP°</th><th>AoP Var°</th><th>Min/Max I</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <h3>Distance Plot</h3>
+        <canvas id="plotCanvas" width="820" height="300"></canvas>
+      </section>
+    </section>
+  </div>
+
+  <script>
+    const state = {
+      images: [],
+      selectedIndex: -1,
+      rois: { A: null, B: null },
+      drawingRoi: null,
+      activeRoi: 'A',
+      distanceUnit: 'm',
+      baselineIndex: 0
+    };
+
+    const els = {
+      fileInput: document.getElementById('fileInput'),
+      rawWidth: document.getElementById('rawWidth'),
+      rawHeight: document.getElementById('rawHeight'),
+      mapMode: document.getElementById('mapMode'),
+      displayScale: document.getElementById('displayScale'),
+      mapCanvas: document.getElementById('mapCanvas'),
+      overlayCanvas: document.getElementById('overlayCanvas'),
+      hoverInspector: document.getElementById('hoverInspector'),
+      imageStatus: document.getElementById('imageStatus'),
+      dimWarning: document.getElementById('dimWarning'),
+      activeRoiSelect: document.getElementById('activeRoiSelect'),
+      seriesList: document.getElementById('seriesList'),
+      statsTableBody: document.querySelector('#statsTable tbody'),
+      distanceUnit: document.getElementById('distanceUnit'),
+      baselineSelect: document.getElementById('baselineSelect'),
+      contrastMode: document.getElementById('contrastMode'),
+      plotMetric: document.getElementById('plotMetric'),
+      plotCanvas: document.getElementById('plotCanvas'),
+      sortByDistanceBtn: document.getElementById('sortByDistanceBtn'),
+      copyRoiBtn: document.getElementById('copyRoiBtn'),
+      exportCsvBtn: document.getElementById('exportCsvBtn'),
+      exportPlotBtn: document.getElementById('exportPlotBtn')
+    };
+
+    const mapCtx = els.mapCanvas.getContext('2d');
+    const overlayCtx = els.overlayCanvas.getContext('2d');
+    const plotCtx = els.plotCanvas.getContext('2d');
+
+    function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+    function circularMeanRadians(values) {
+      if (!values.length) return NaN;
+      let sx = 0, sy = 0;
+      for (const a of values) { sx += Math.cos(2 * a); sy += Math.sin(2 * a); }
+      return 0.5 * Math.atan2(sy, sx);
+    }
+
+    function circularStdDegrees(values) {
+      if (!values.length) return NaN;
+      let sx = 0, sy = 0;
+      for (const a of values) { sx += Math.cos(2 * a); sy += Math.sin(2 * a); }
+      const R = Math.sqrt(sx * sx + sy * sy) / values.length;
+      const sigma = Math.sqrt(Math.max(0, -2 * Math.log(Math.max(R, 1e-8)))) / 2;
+      return sigma * 180 / Math.PI;
+    }
+
+    async function decodeFileToQuadData(file) {
+      const name = file.name.toLowerCase();
+      if (name.endsWith('.raw')) {
+        const width = Number(els.rawWidth.value);
+        const height = Number(els.rawHeight.value);
+        const buf = await file.arrayBuffer();
+        const bytes = new Uint8Array(buf);
+        const expected = width * height;
+        if (bytes.length < expected) throw new Error(`RAW smaller than width*height (${bytes.length} < ${expected})`);
+        return decodeQuadFromMosaic(bytes, width, height, file.name);
+      }
+      const bitmap = await createImageBitmap(file);
+      const cv = document.createElement('canvas');
+      cv.width = bitmap.width;
+      cv.height = bitmap.height;
+      const cx = cv.getContext('2d');
+      cx.drawImage(bitmap, 0, 0);
+      const rgba = cx.getImageData(0, 0, cv.width, cv.height).data;
+      const gray = new Uint8Array(cv.width * cv.height);
+      for (let i = 0, j = 0; i < rgba.length; i += 4, j++) gray[j] = Math.round(0.299 * rgba[i] + 0.587 * rgba[i + 1] + 0.114 * rgba[i + 2]);
+      return decodeQuadFromMosaic(gray, cv.width, cv.height, file.name);
+    }
+
+    function decodeQuadFromMosaic(mosaic, width, height, label) {
+      const w2 = Math.floor(width / 2), h2 = Math.floor(height / 2);
+      const n = w2 * h2;
+      const i0 = new Float32Array(n), i45 = new Float32Array(n), i90 = new Float32Array(n), i135 = new Float32Array(n);
+      const intensity = new Float32Array(n), dolp = new Float32Array(n), aop = new Float32Array(n);
+      let idx = 0;
+      for (let y = 0; y < h2; y++) {
+        const yy = y * 2;
+        for (let x = 0; x < w2; x++) {
+          const xx = x * 2;
+          const p00 = mosaic[yy * width + xx];
+          const p01 = mosaic[yy * width + xx + 1];
+          const p10 = mosaic[(yy + 1) * width + xx];
+          const p11 = mosaic[(yy + 1) * width + xx + 1];
+          // Standard quad-pol pattern assumption: [0,45;135,90]
+          i0[idx] = p00; i45[idx] = p01; i135[idx] = p10; i90[idx] = p11;
+          const s0 = i0[idx] + i90[idx];
+          const s1 = i0[idx] - i90[idx];
+          const s2 = i45[idx] - i135[idx];
+          intensity[idx] = 0.5 * (i0[idx] + i45[idx] + i90[idx] + i135[idx]);
+          dolp[idx] = Math.sqrt(s1 * s1 + s2 * s2) / Math.max(s0, 1e-6);
+          let a = 0.5 * Math.atan2(s2, s1);
+          if (a < 0) a += Math.PI;
+          aop[idx] = a;
+          idx++;
+        }
+      }
+      return { label, width: w2, height: h2, i0, i45, i90, i135, intensity, dolp, aop };
+    }
+
+    function imageToThumbnailUrl(imgData) {
+      const cv = document.createElement('canvas');
+      cv.width = Math.min(100, imgData.width);
+      cv.height = Math.min(100, imgData.height);
+      const cx = cv.getContext('2d');
+      const out = cx.createImageData(cv.width, cv.height);
+      for (let y = 0; y < cv.height; y++) {
+        for (let x = 0; x < cv.width; x++) {
+          const sx = Math.floor((x / cv.width) * imgData.width);
+          const sy = Math.floor((y / cv.height) * imgData.height);
+          const sv = imgData.intensity[sy * imgData.width + sx];
+          const i = (y * cv.width + x) * 4;
+          out.data[i] = out.data[i + 1] = out.data[i + 2] = sv;
+          out.data[i + 3] = 255;
+        }
+      }
+      cx.putImageData(out, 0, 0);
+      return cv.toDataURL('image/png');
+    }
+
+    function renderCurrentImage() {
+      if (state.selectedIndex < 0 || !state.images[state.selectedIndex]) {
+        mapCtx.clearRect(0, 0, els.mapCanvas.width, els.mapCanvas.height);
+        return;
+      }
+      const item = state.images[state.selectedIndex];
+      const d = item.data;
+      els.mapCanvas.width = d.width;
+      els.mapCanvas.height = d.height;
+      els.overlayCanvas.width = d.width;
+      els.overlayCanvas.height = d.height;
+      const mode = els.mapMode.value;
+      const scaleMode = els.displayScale.value;
+
+      const im = mapCtx.createImageData(d.width, d.height);
+      let minV = Infinity, maxV = -Infinity;
+      const src = mode === 'intensity' ? d.intensity : mode === 'dolp' ? d.dolp : d.aop;
+      for (let i = 0; i < src.length; i++) { if (src[i] < minV) minV = src[i]; if (src[i] > maxV) maxV = src[i]; }
+      const range = Math.max(maxV - minV, 1e-8);
+      for (let i = 0; i < src.length; i++) {
+        let v = (src[i] - minV) / range;
+        if (scaleMode === 'sqrt') v = Math.sqrt(v);
+        const p = i * 4;
+        if (mode === 'aop') {
+          const hue = (src[i] / Math.PI) * 360;
+          const rgb = hslToRgb(hue / 360, 1, 0.5);
+          im.data[p] = rgb[0]; im.data[p + 1] = rgb[1]; im.data[p + 2] = rgb[2];
+        } else {
+          const g = Math.round(255 * v);
+          im.data[p] = im.data[p + 1] = im.data[p + 2] = g;
+        }
+        im.data[p + 3] = 255;
+      }
+      mapCtx.putImageData(im, 0, 0);
+      drawRoiOverlay();
+      els.imageStatus.textContent = `${item.file.name} • ${d.width}×${d.height} (decoded)`;
+      refreshDimensionWarning();
+    }
+
+    function hslToRgb(h, s, l) {
+      const a = s * Math.min(l, 1 - l);
+      const f = n => {
+        const k = (n + h * 12) % 12;
+        return l - a * Math.max(-1, Math.min(k - 3, Math.min(9 - k, 1)));
+      };
+      return [Math.round(255 * f(0)), Math.round(255 * f(8)), Math.round(255 * f(4))];
+    }
+
+    function drawRoiOverlay() {
+      overlayCtx.clearRect(0, 0, els.overlayCanvas.width, els.overlayCanvas.height);
+      const rois = [['A', '#58b3ff'], ['B', '#50d2c2']];
+      for (const [name, color] of rois) {
+        const r = state.rois[name];
+        if (!r) continue;
+        overlayCtx.strokeStyle = color;
+        overlayCtx.lineWidth = 2;
+        overlayCtx.strokeRect(r.x, r.y, r.w, r.h);
+        overlayCtx.fillStyle = color + '33';
+        overlayCtx.fillRect(r.x, r.y, r.w, r.h);
+        overlayCtx.fillStyle = color;
+        overlayCtx.fillText(name, r.x + 4, r.y + 12);
+      }
+    }
+
+    function roiPixels(img, roi) {
+      if (!roi) return null;
+      const x0 = clamp(Math.round(roi.x), 0, img.width - 1);
+      const y0 = clamp(Math.round(roi.y), 0, img.height - 1);
+      const x1 = clamp(Math.round(roi.x + roi.w), 1, img.width);
+      const y1 = clamp(Math.round(roi.y + roi.h), 1, img.height);
+      if (x1 <= x0 || y1 <= y0) return null;
+      const arrI = [], arrD = [], arrA = [];
+      for (let y = y0; y < y1; y++) {
+        for (let x = x0; x < x1; x++) {
+          const i = y * img.width + x;
+          arrI.push(img.intensity[i]);
+          arrD.push(img.dolp[i]);
+          arrA.push(img.aop[i]);
+        }
+      }
+      return { intensity: arrI, dolp: arrD, aop: arrA };
+    }
+
+    function mean(arr) { return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : NaN; }
+    function std(arr) {
+      if (!arr.length) return NaN;
+      const m = mean(arr);
+      return Math.sqrt(arr.reduce((s, v) => s + (v - m) * (v - m), 0) / arr.length);
+    }
+    function minMax(arr) {
+      if (!arr.length) return [NaN, NaN];
+      let lo = Infinity, hi = -Infinity;
+      for (const v of arr) { if (v < lo) lo = v; if (v > hi) hi = v; }
+      return [lo, hi];
+    }
+
+    function computeStatsForImage(item, roiName) {
+      const roi = state.rois[roiName];
+      const px = roiPixels(item.data, roi);
+      if (!px) return null;
+      const meanAoP = circularMeanRadians(px.aop);
+      const [iMin, iMax] = minMax(px.intensity);
+      return {
+        roiName,
+        meanIntensity: mean(px.intensity),
+        stdIntensity: std(px.intensity),
+        meanDoLP: mean(px.dolp),
+        stdDoLP: std(px.dolp),
+        meanAoP: meanAoP * 180 / Math.PI,
+        aopVar: circularStdDegrees(px.aop),
+        minIntensity: iMin,
+        maxIntensity: iMax
+      };
+    }
+
+    const metricFormulas = {
+      michelson: (a, b) => (a + b === 0 ? NaN : (a - b) / (a + b)),
+      difference: (a, b) => Math.abs(a - b),
+      percentDrop: (a, _b, base) => base === 0 ? NaN : (base - a) / base * 100,
+      normalized: (a, _b, base) => base === 0 ? NaN : a / base
+    };
+
+    function computeDistanceDataset() {
+      const rows = [];
+      const valid = state.images.filter(it => Number.isFinite(it.distance));
+      valid.sort((a, b) => a.distance - b.distance);
+      const baseline = valid[state.baselineIndex] || valid[0] || null;
+
+      let baseIA = NaN, baseDA = NaN;
+      if (baseline) {
+        const sA = computeStatsForImage(baseline, 'A');
+        if (sA) { baseIA = sA.meanIntensity; baseDA = sA.meanDoLP; }
+      }
+
+      for (const item of valid) {
+        const sA = computeStatsForImage(item, 'A');
+        const sB = computeStatsForImage(item, 'B');
+        if (!sA) continue;
+        const contrastMode = els.contrastMode.value;
+        const ci = sB ? metricFormulas[contrastMode](sA.meanIntensity, sB.meanIntensity, baseIA) : NaN;
+        const cd = sB ? metricFormulas[contrastMode](sA.meanDoLP, sB.meanDoLP, baseDA) : NaN;
+        rows.push({
+          filename: item.file.name,
+          distance: item.distance,
+          unit: state.distanceUnit,
+          roiA: sA,
+          roiB: sB,
+          contrastMode,
+          contrastIntensity: ci,
+          contrastDoLP: cd,
+          normIntensityA: baseIA === 0 ? NaN : sA.meanIntensity / baseIA,
+          normDoLPA: baseDA === 0 ? NaN : sA.meanDoLP / baseDA
+        });
+      }
+      return rows;
+    }
+
+    function updateStatsTable() {
+      const rows = computeDistanceDataset();
+      els.statsTableBody.innerHTML = '';
+      for (const r of rows) {
+        const trA = document.createElement('tr');
+        trA.innerHTML = `<td>${r.filename}</td><td>${fmt(r.distance)}</td><td>A</td><td>${fmt(r.roiA.meanIntensity)}</td><td>${fmt(r.roiA.stdIntensity)}</td><td>${fmt(r.roiA.meanDoLP)}</td><td>${fmt(r.roiA.stdDoLP)}</td><td>${fmt(r.roiA.meanAoP)}</td><td>${fmt(r.roiA.aopVar)}</td><td>${fmt(r.roiA.minIntensity)}/${fmt(r.roiA.maxIntensity)}</td>`;
+        els.statsTableBody.appendChild(trA);
+        if (r.roiB) {
+          const trB = document.createElement('tr');
+          trB.innerHTML = `<td>${r.filename}</td><td>${fmt(r.distance)}</td><td>B</td><td>${fmt(r.roiB.meanIntensity)}</td><td>${fmt(r.roiB.stdIntensity)}</td><td>${fmt(r.roiB.meanDoLP)}</td><td>${fmt(r.roiB.stdDoLP)}</td><td>${fmt(r.roiB.meanAoP)}</td><td>${fmt(r.roiB.aopVar)}</td><td>${fmt(r.roiB.minIntensity)}/${fmt(r.roiB.maxIntensity)}</td>`;
+          els.statsTableBody.appendChild(trB);
+        }
+      }
+    }
+
+    function fmt(v) { return Number.isFinite(v) ? v.toFixed(4) : '—'; }
+
+    function plotMetric() {
+      const rows = computeDistanceDataset();
+      const metric = els.plotMetric.value;
+      const points = rows.map(r => {
+        let y;
+        if (metric === 'meanIntensityA') y = r.roiA.meanIntensity;
+        else if (metric === 'meanDoLPA') y = r.roiA.meanDoLP;
+        else if (metric === 'aopVarA') y = r.roiA.aopVar;
+        else if (metric === 'contrastIntensity') y = r.contrastIntensity;
+        else if (metric === 'contrastDoLP') y = r.contrastDoLP;
+        else if (metric === 'normIntensityA') y = r.normIntensityA;
+        else if (metric === 'normDoLPA') y = r.normDoLPA;
+        return { x: r.distance, y };
+      }).filter(p => Number.isFinite(p.x) && Number.isFinite(p.y));
+      drawPlot(points, metric, state.distanceUnit);
+    }
+
+    function drawPlot(points, metricName, unit) {
+      const ctx = plotCtx;
+      const w = els.plotCanvas.width, h = els.plotCanvas.height;
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = '#0d1422'; ctx.fillRect(0, 0, w, h);
+      const pad = { l: 58, r: 20, t: 24, b: 44 };
+      ctx.strokeStyle = '#2d3c59'; ctx.strokeRect(pad.l, pad.t, w - pad.l - pad.r, h - pad.t - pad.b);
+      if (!points.length) {
+        ctx.fillStyle = '#9fb0cb';
+        ctx.fillText('No plottable distance data yet.', 20, 20);
+        return;
+      }
+      let xMin = Math.min(...points.map(p => p.x)), xMax = Math.max(...points.map(p => p.x));
+      let yMin = Math.min(...points.map(p => p.y)), yMax = Math.max(...points.map(p => p.y));
+      if (xMin === xMax) xMax = xMin + 1;
+      if (yMin === yMax) yMax = yMin + 1;
+      const sx = x => pad.l + (x - xMin) / (xMax - xMin) * (w - pad.l - pad.r);
+      const sy = y => h - pad.b - (y - yMin) / (yMax - yMin) * (h - pad.t - pad.b);
+      ctx.strokeStyle = '#37527a';
+      for (let i = 0; i <= 5; i++) {
+        const y = pad.t + i * (h - pad.t - pad.b) / 5;
+        ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke();
+      }
+      points.sort((a, b) => a.x - b.x);
+      ctx.strokeStyle = '#58b3ff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      points.forEach((p, i) => i ? ctx.lineTo(sx(p.x), sy(p.y)) : ctx.moveTo(sx(p.x), sy(p.y)));
+      ctx.stroke();
+      ctx.fillStyle = '#50d2c2';
+      for (const p of points) { ctx.beginPath(); ctx.arc(sx(p.x), sy(p.y), 3.6, 0, Math.PI * 2); ctx.fill(); }
+      ctx.fillStyle = '#cfe0fb';
+      ctx.fillText(`Metric: ${metricName}`, pad.l, 16);
+      ctx.fillText(`Distance (${unit})`, w / 2 - 35, h - 12);
+      ctx.save();
+      ctx.translate(14, h / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillText(metricName, 0, 0);
+      ctx.restore();
+      ctx.fillStyle = '#9fb0cb';
+      ctx.fillText(xMin.toFixed(2), pad.l, h - 24);
+      ctx.fillText(xMax.toFixed(2), w - pad.r - 24, h - 24);
+      ctx.fillText(yMin.toFixed(3), 10, h - pad.b);
+      ctx.fillText(yMax.toFixed(3), 10, pad.t + 5);
+    }
+
+    function refreshSeriesList() {
+      els.seriesList.innerHTML = '';
+      state.images.forEach((it, idx) => {
+        const row = document.createElement('div');
+        row.className = 'series-item';
+        row.innerHTML = `
+          <img class="thumb" src="${it.thumb}" alt="thumbnail" />
+          <div>
+            <div class="filename" title="${it.file.name}">${it.file.name}</div>
+            <div class="muted">${it.data.width}×${it.data.height}</div>
+          </div>
+          <input class="distance-input" type="number" step="any" value="${Number.isFinite(it.distance) ? it.distance : ''}" placeholder="distance" />
+          <div class="series-controls">
+            <button title="Move up">↑</button><button title="Move down">↓</button>
+          </div>
+          <button class="danger" title="Delete">✕</button>`;
+        const [distanceInput, controls, delBtn] = [row.children[2], row.children[3], row.children[4]];
+        row.onclick = (e) => {
+          if (e.target.tagName.toLowerCase() === 'button' || e.target.tagName.toLowerCase() === 'input') return;
+          state.selectedIndex = idx;
+          renderCurrentImage();
+          refreshSeriesList();
+        };
+        if (idx === state.selectedIndex) row.style.borderColor = '#5aa3ff';
+
+        distanceInput.onchange = () => {
+          const v = Number(distanceInput.value);
+          it.distance = Number.isFinite(v) ? v : NaN;
+          updateAllAnalysis();
+        };
+        const upBtn = controls.children[0], downBtn = controls.children[1];
+        upBtn.onclick = () => moveImage(idx, idx - 1);
+        downBtn.onclick = () => moveImage(idx, idx + 1);
+        delBtn.onclick = () => {
+          state.images.splice(idx, 1);
+          if (state.selectedIndex >= state.images.length) state.selectedIndex = state.images.length - 1;
+          refreshBaselineOptions();
+          updateAllAnalysis();
+          renderCurrentImage();
+          refreshSeriesList();
+        };
+        els.seriesList.appendChild(row);
+      });
+    }
+
+    function moveImage(from, to) {
+      if (to < 0 || to >= state.images.length) return;
+      const [item] = state.images.splice(from, 1);
+      state.images.splice(to, 0, item);
+      state.selectedIndex = to;
+      refreshBaselineOptions();
+      refreshSeriesList();
+      updateAllAnalysis();
+      renderCurrentImage();
+    }
+
+    function refreshBaselineOptions() {
+      els.baselineSelect.innerHTML = '';
+      state.images.forEach((it, i) => {
+        const op = document.createElement('option');
+        op.value = String(i);
+        op.textContent = `${i + 1}: ${it.file.name}`;
+        els.baselineSelect.appendChild(op);
+      });
+      if (state.images.length) {
+        let best = 0;
+        let bestD = Infinity;
+        state.images.forEach((it, i) => {
+          if (Number.isFinite(it.distance) && it.distance < bestD) { best = i; bestD = it.distance; }
+        });
+        state.baselineIndex = best;
+        els.baselineSelect.value = String(best);
+      }
+    }
+
+    function refreshDimensionWarning() {
+      if (!state.images.length) { els.dimWarning.textContent = ''; return; }
+      const w = state.images[0].data.width, h = state.images[0].data.height;
+      const mismatch = state.images.some(it => it.data.width !== w || it.data.height !== h);
+      els.dimWarning.textContent = mismatch ? 'Dimension mismatch in series. ROI stats computed on overlapping clamped region.' : '';
+    }
+
+    function updateAllAnalysis() {
+      updateStatsTable();
+      plotMetric();
+      refreshDimensionWarning();
+    }
+
+    function exportCsv() {
+      const rows = computeDistanceDataset();
+      const csvRows = [[
+        'filename','distance','unit','ROI name','mean intensity','std intensity','mean DoLP','std DoLP','mean AoP deg','AoP variability deg','contrast metric used','contrast intensity','contrast DoLP','normalized intensity','normalized DoLP'
+      ]];
+      for (const r of rows) {
+        csvRows.push([
+          r.filename,r.distance,r.unit,'A',r.roiA.meanIntensity,r.roiA.stdIntensity,r.roiA.meanDoLP,r.roiA.stdDoLP,r.roiA.meanAoP,r.roiA.aopVar,r.contrastMode,r.contrastIntensity,r.contrastDoLP,r.normIntensityA,r.normDoLPA
+        ]);
+        if (r.roiB) {
+          csvRows.push([
+            r.filename,r.distance,r.unit,'B',r.roiB.meanIntensity,r.roiB.stdIntensity,r.roiB.meanDoLP,r.roiB.stdDoLP,r.roiB.meanAoP,r.roiB.aopVar,r.contrastMode,r.contrastIntensity,r.contrastDoLP,'',''
+          ]);
+        }
+      }
+      const csv = csvRows.map(r => r.map(v => {
+        const s = String(v ?? '');
+        return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      }).join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'squint_distance_analysis.csv';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 500);
+    }
+
+    function exportPlotPng() {
+      const a = document.createElement('a');
+      a.href = els.plotCanvas.toDataURL('image/png');
+      a.download = 'squint_distance_plot.png';
+      a.click();
+    }
+
+    function setupInteractions() {
+      els.fileInput.addEventListener('change', async (e) => {
+        const files = Array.from(e.target.files || []);
+        for (const file of files) {
+          try {
+            const data = await decodeFileToQuadData(file);
+            const thumb = imageToThumbnailUrl(data);
+            state.images.push({ file, data, thumb, distance: NaN });
+          } catch (err) {
+            console.error(err);
+            alert(`Failed to decode ${file.name}: ${err.message}`);
+          }
+        }
+        if (state.selectedIndex < 0 && state.images.length) state.selectedIndex = 0;
+        refreshBaselineOptions();
+        refreshSeriesList();
+        renderCurrentImage();
+        updateAllAnalysis();
+      });
+
+      [els.mapMode, els.displayScale].forEach(el => el.addEventListener('change', renderCurrentImage));
+      els.activeRoiSelect.onchange = () => { state.activeRoi = els.activeRoiSelect.value; };
+      els.distanceUnit.onchange = () => { state.distanceUnit = els.distanceUnit.value; updateAllAnalysis(); };
+      els.baselineSelect.onchange = () => { state.baselineIndex = Number(els.baselineSelect.value) || 0; updateAllAnalysis(); };
+      els.contrastMode.onchange = updateAllAnalysis;
+      els.plotMetric.onchange = plotMetric;
+      els.sortByDistanceBtn.onclick = () => {
+        state.images.sort((a, b) => (Number.isFinite(a.distance) ? a.distance : Infinity) - (Number.isFinite(b.distance) ? b.distance : Infinity));
+        state.selectedIndex = Math.max(0, Math.min(state.selectedIndex, state.images.length - 1));
+        refreshBaselineOptions();
+        refreshSeriesList();
+        updateAllAnalysis();
+        renderCurrentImage();
+      };
+      els.copyRoiBtn.onclick = () => {
+        // ROI is globally applied by design; this reinforces intent.
+        updateAllAnalysis();
+      };
+      els.exportCsvBtn.onclick = exportCsv;
+      els.exportPlotBtn.onclick = exportPlotPng;
+
+      let dragging = false;
+      let start = null;
+      els.mapCanvas.addEventListener('mousedown', (e) => {
+        if (state.selectedIndex < 0) return;
+        const p = canvasPoint(e, els.mapCanvas);
+        start = p;
+        dragging = true;
+      });
+      window.addEventListener('mouseup', () => {
+        if (!dragging || !start) return;
+        dragging = false;
+        if (state.drawingRoi) {
+          state.rois[state.activeRoi] = state.drawingRoi;
+          state.drawingRoi = null;
+          drawRoiOverlay();
+          updateAllAnalysis();
+        }
+      });
+      window.addEventListener('mousemove', (e) => {
+        const idx = state.selectedIndex;
+        if (idx >= 0) {
+          const p = canvasPoint(e, els.mapCanvas, true);
+          if (p) {
+            const d = state.images[idx].data;
+            const x = clamp(Math.round(p.x), 0, d.width - 1);
+            const y = clamp(Math.round(p.y), 0, d.height - 1);
+            const i = y * d.width + x;
+            els.hoverInspector.textContent = `x:${x} y:${y} I:${d.intensity[i].toFixed(3)} DoLP:${d.dolp[i].toFixed(4)} AoP:${(d.aop[i] * 180 / Math.PI).toFixed(2)}°`;
+          }
+        }
+        if (!dragging || !start) return;
+        const p = canvasPoint(e, els.mapCanvas, true);
+        if (!p) return;
+        let w = p.x - start.x, h = p.y - start.y;
+        if (e.shiftKey) {
+          const m = Math.max(Math.abs(w), Math.abs(h));
+          w = Math.sign(w || 1) * m;
+          h = Math.sign(h || 1) * m;
+        }
+        const r = {
+          x: Math.min(start.x, start.x + w),
+          y: Math.min(start.y, start.y + h),
+          w: Math.abs(w), h: Math.abs(h)
+        };
+        state.drawingRoi = r;
+        state.rois[state.activeRoi] = r;
+        drawRoiOverlay();
+      });
+    }
+
+    function canvasPoint(ev, canvas, mustBeInside = false) {
+      const rect = canvas.getBoundingClientRect();
+      const x = (ev.clientX - rect.left) * (canvas.width / rect.width);
+      const y = (ev.clientY - rect.top) * (canvas.height / rect.height);
+      if (mustBeInside && (x < 0 || y < 0 || x > canvas.width || y > canvas.height)) return null;
+      return { x, y };
+    }
+
+    setupInteractions();
+    drawPlot([], 'meanIntensityA', state.distanceUnit);
+  </script>
+</body>
+</html>
