@@ -1,5 +1,5 @@
-const NODE_TYPES = ['memory', 'person', 'place', 'object', 'song', 'phrase', 'event', 'date'];
-const CUE_TYPES = ['object', 'song', 'place', 'person', 'phrase', 'thought', 'date/time', 'event', 'other'];
+const NODE_TYPES = ['memory', 'person', 'place', 'object', 'song', 'event'];
+const CUE_TYPES = ['object', 'song', 'place', 'person', 'date/time', 'event', 'other'];
 
 const config = {
   movement: { proximityRadiusPx: 120, dwellThresholdMs: 1200, slowSpeedThresholdPxPerMs: 0.22 },
@@ -18,95 +18,57 @@ const storageEngine = {
 };
 
 const createLocalProfileAuthRepository = (engine, cfg) => ({
-  loadProfiles() {
-    try {
-      return JSON.parse(engine.getItem(cfg.storage.profilesKey) || '[]');
-    } catch {
-      return [];
-    }
-  },
-  saveProfiles(profiles) {
-    engine.setItem(cfg.storage.profilesKey, JSON.stringify(profiles));
-  },
-  listProfiles() {
-    return this.loadProfiles().sort((a, b) => a.name.localeCompare(b.name));
-  },
+  loadProfiles() { try { return JSON.parse(engine.getItem(cfg.storage.profilesKey) || '[]'); } catch { return []; } },
+  saveProfiles(profiles) { engine.setItem(cfg.storage.profilesKey, JSON.stringify(profiles)); },
+  listProfiles() { return this.loadProfiles().sort((a, b) => a.name.localeCompare(b.name)); },
   createProfile(name) {
     const normalized = name.trim().replace(/\s+/g, ' ');
     if (!normalized) throw new Error('Profile name is required.');
     const profiles = this.loadProfiles();
-    const exists = profiles.some((p) => p.name.toLowerCase() === normalized.toLowerCase());
-    if (exists) throw new Error('That profile already exists.');
+    if (profiles.some((p) => p.name.toLowerCase() === normalized.toLowerCase())) throw new Error('That profile already exists.');
     const profile = { id: uid('usr'), name: normalized, createdAt: nowIso() };
     profiles.push(profile);
     this.saveProfiles(profiles);
     this.setActiveProfileId(profile.id);
     return profile;
   },
-  setActiveProfileId(profileId) {
-    if (!profileId) {
-      engine.removeItem(cfg.storage.activeProfileKey);
-      return;
-    }
-    engine.setItem(cfg.storage.activeProfileKey, profileId);
-  },
-  getActiveProfileId() {
-    return engine.getItem(cfg.storage.activeProfileKey);
-  },
-  getActiveProfile() {
-    const id = this.getActiveProfileId();
-    if (!id) return null;
-    return this.loadProfiles().find((profile) => profile.id === id) || null;
-  },
+  setActiveProfileId(profileId) { profileId ? engine.setItem(cfg.storage.activeProfileKey, profileId) : engine.removeItem(cfg.storage.activeProfileKey); },
+  getActiveProfileId() { return engine.getItem(cfg.storage.activeProfileKey); },
+  getActiveProfile() { return this.loadProfiles().find((p) => p.id === this.getActiveProfileId()) || null; },
   signIn(profileId) {
     const profile = this.loadProfiles().find((item) => item.id === profileId);
     if (!profile) throw new Error('Profile not found.');
     this.setActiveProfileId(profile.id);
     return profile;
   },
-  signOut() {
-    this.setActiveProfileId(null);
-  },
+  signOut() { this.setActiveProfileId(null); },
 });
 
 const createNamespacedMemoryRepository = (engine, cfg) => ({
-  key(userId) {
-    return `${cfg.storage.userDataPrefix}:${userId}`;
-  },
+  key(userId) { return `${cfg.storage.userDataPrefix}:${userId}`; },
   loadUserData(userId) {
     if (!userId) return defaultUserData();
     try {
       const raw = engine.getItem(this.key(userId));
       return raw ? { ...defaultUserData(), ...JSON.parse(raw) } : defaultUserData();
-    } catch {
-      return defaultUserData();
-    }
+    } catch { return defaultUserData(); }
   },
-  saveUserData(userId, payload) {
-    if (!userId) return;
-    engine.setItem(this.key(userId), JSON.stringify(payload));
-  },
+  saveUserData(userId, payload) { if (userId) engine.setItem(this.key(userId), JSON.stringify(payload)); },
 });
 
 const authRepository = createLocalProfileAuthRepository(storageEngine, config);
 const memoryRepository = createNamespacedMemoryRepository(storageEngine, config);
 
 function defaultUserData() {
-  return {
-    nodes: [],
-    memories: [],
-    sessions: [],
-    settings: { pointerSlowThreshold: 0.22, recoverLimit: 10 },
-  };
+  return { nodes: [], memories: [], sessions: [], settings: { pointerSlowThreshold: 0.22, recoverLimit: 10 } };
 }
 
 const state = {
-  route: 'home',
+  route: 'memory-net',
   cueType: 'object',
   cue: '',
   recencyDays: 'all',
   selectedId: null,
-  editingId: null,
   currentUser: null,
   profiles: [],
   nodes: [],
@@ -122,7 +84,6 @@ const state = {
 const el = {
   pages: {
     auth: document.getElementById('authPage'),
-    home: document.getElementById('homePage'),
     recover: document.getElementById('recoverPage'),
     memoryNet: document.getElementById('memoryNetPage'),
     timeline: document.getElementById('timelinePage'),
@@ -147,13 +108,15 @@ const el = {
   recoverTelemetry: document.getElementById('recoverTelemetry'),
   netField: document.getElementById('netField'),
   netLinks: document.getElementById('netLinks'),
-  nodeList: document.getElementById('nodeList'),
+  nodeDetailPanel: document.getElementById('nodeDetailPanel'),
+  linkedNodeSummary: document.getElementById('linkedNodeSummary'),
+  openComposerBtn: document.getElementById('openComposerBtn'),
+  memoryComposer: document.getElementById('memoryComposer'),
+  cancelComposerBtn: document.getElementById('cancelComposerBtn'),
   memoryForm: document.getElementById('memoryForm'),
-  anchorForm: document.getElementById('anchorForm'),
-  eventForm: document.getElementById('eventForm'),
   editorForm: document.getElementById('editorForm'),
+  quickLinkBtn: document.getElementById('quickLinkBtn'),
   deleteNodeBtn: document.getElementById('deleteNodeBtn'),
-  linkForm: document.getElementById('linkForm'),
   eventTimeline: document.getElementById('eventTimeline'),
   dateClusters: document.getElementById('dateClusters'),
   timelineDetail: document.getElementById('timelineDetail'),
@@ -164,28 +127,32 @@ const el = {
 
 const parseCsv = (value) => (value || '').split(',').map((v) => v.trim()).filter(Boolean);
 const nowIso = () => new Date().toISOString();
+const todayString = () => new Date().toISOString().slice(0, 10);
 const uid = (prefix) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-const allNodes = () => state.nodes;
-const memoryNodes = () => state.nodes.filter((n) => n.nodeType === 'memory');
-const eventNodes = () => state.nodes.filter((n) => n.nodeType === 'event');
 const byId = (id) => state.nodes.find((n) => n.id === id);
+const isAuthenticated = () => Boolean(state.currentUser);
+const nodeLabel = (node) => node.title || node.label || 'Untitled';
 
-function isAuthenticated() {
-  return Boolean(state.currentUser);
+function nodeDateIso(node) {
+  const raw = node.rememberedAt || node.date || node.startTime || node.createdAt || nowIso();
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? nowIso() : d.toISOString();
 }
 
-function setAuthFeedback(message) {
-  el.authFeedback.textContent = message || '';
+function formatShortDate(value) {
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? 'Unknown date' : d.toLocaleDateString();
 }
+
+function setAuthFeedback(message) { el.authFeedback.textContent = message || ''; }
 
 function resetTransientState() {
   state.selectedId = null;
-  state.editingId = null;
   state.session = null;
   state.metricsById = {};
   state.positions = {};
   state.movement = { lastX: null, lastY: null, lastTimestamp: null, avgSpeed: 0, sampleCount: 0 };
-  el.editorForm.classList.add('hidden');
+  el.nodeDetailPanel.classList.add('hidden');
 }
 
 function loadCurrentUserData() {
@@ -199,26 +166,22 @@ function loadCurrentUserData() {
 
 function persistAll() {
   if (!isAuthenticated()) return;
-  state.memories = memoryNodes();
-  memoryRepository.saveUserData(state.currentUser.id, {
-    nodes: state.nodes,
-    memories: state.memories,
-    sessions: state.sessions,
-    settings: state.settings,
-  });
+  state.memories = state.nodes.filter((n) => n.nodeType === 'memory');
+  memoryRepository.saveUserData(state.currentUser.id, { nodes: state.nodes, memories: state.memories, sessions: state.sessions, settings: state.settings });
 }
 
 function ensureModel() {
-  state.nodes = state.nodes.map((n) => ({ linkedNodeIds: [], tags: [], ...n }));
-  state.memories.forEach((memory) => {
-    if (!byId(memory.id)) {
-      state.nodes.push({ ...memory, nodeType: 'memory', linkedNodeIds: memory.linkedNodeIds || [] });
-    }
-  });
-  allNodes().forEach((node, idx) => {
+  state.nodes = state.nodes.map((node) => ({
+    linkedNodeIds: [],
+    tags: [],
+    nodeType: node.nodeType || 'memory',
+    ...node,
+    date: node.date || node.rememberedAt || node.createdAt || todayString(),
+  }));
+  state.nodes.forEach((node) => {
     if (!state.metricsById[node.id]) state.metricsById[node.id] = { dwellMs: 0, revisitCount: 0, slowNearMs: 0, inferredScore: 0.4, isNear: false, wasNear: false };
-    if (!state.positions[node.id]) state.positions[node.id] = { x: ((idx * 19) % 80) + 10, y: ((idx * 31) % 70) + 12 };
   });
+  computeNetLayout();
   persistAll();
 }
 
@@ -231,25 +194,22 @@ function setRoute(route) {
 
   Object.entries(el.pages).forEach(([key, page]) => page.classList.toggle('hidden', (key === 'memoryNet' ? 'memory-net' : key) !== route));
   document.querySelectorAll('.nav-btn').forEach((btn) => {
-    const disabled = !isAuthenticated();
-    btn.disabled = disabled;
-    btn.classList.toggle('is-active', btn.dataset.route === route && !disabled);
+    btn.disabled = !isAuthenticated();
+    btn.classList.toggle('is-active', btn.dataset.route === route && isAuthenticated());
   });
   if (route !== 'auth') location.hash = route;
 }
 
 function ageDays(timestamp) { return (Date.now() - new Date(timestamp || nowIso()).getTime()) / 86400000; }
-function searchableText(node) {
-  return [node.title, node.label, node.fragment, node.notes, node.location, (node.people || []).join(' '), (node.tags || []).join(' '), node.memoryType, node.thread].join(' ').toLowerCase();
-}
+function searchableText(node) { return [node.title, node.label, node.fragment, node.notes, (node.tags || []).join(' '), node.nodeType].join(' ').toLowerCase(); }
 
 function recoverPool() {
   const cue = state.cue.toLowerCase().trim();
-  return allNodes().filter((node) => {
-    const cueTypeMatch = state.cueType === 'date/time' ? node.nodeType === 'date' : node.nodeType === state.cueType || (state.cueType === 'event' && node.nodeType === 'event');
+  return state.nodes.filter((node) => {
+    const cueTypeMatch = state.cueType === 'date/time' ? node.nodeType === 'event' || node.nodeType === 'memory' : node.nodeType === state.cueType || state.cueType === 'other';
     const cueTextMatch = !cue || searchableText(node).includes(cue);
-    const recencyMatch = state.recencyDays === 'all' || ageDays(node.rememberedAt || node.createdAt) <= Number(state.recencyDays);
-    return cueTypeMatch || (cueTextMatch && recencyMatch);
+    const recencyMatch = state.recencyDays === 'all' || ageDays(nodeDateIso(node)) <= Number(state.recencyDays);
+    return cueTypeMatch && cueTextMatch && recencyMatch;
   });
 }
 
@@ -257,7 +217,7 @@ function scoreNode(node) {
   const metric = state.metricsById[node.id];
   const cue = state.cue.toLowerCase().trim();
   const cueMatch = cue && searchableText(node).includes(cue) ? 1 : 0;
-  const recencyFactor = Math.max(0, 1 - ageDays(node.rememberedAt || node.createdAt) / 90);
+  const recencyFactor = Math.max(0, 1 - ageDays(nodeDateIso(node)) / 90);
   const selected = byId(state.selectedId);
   const linkedMatch = selected && ((selected.linkedNodeIds || []).includes(node.id) || (node.linkedNodeIds || []).includes(selected.id)) ? 1 : 0;
   const tagMatch = cue && (node.tags || []).some((tag) => tag.toLowerCase().includes(cue)) ? 1 : 0;
@@ -271,7 +231,71 @@ function topRecoverCandidates() {
   return recoverPool().map((node) => ({ node, score: scoreNode(node) })).sort((a, b) => b.score - a.score).slice(0, state.settings.recoverLimit).map((x) => x.node);
 }
 
+function computeNetLayout() {
+  const nodes = state.nodes;
+  if (!nodes.length) return;
+  const sorted = [...nodes].sort((a, b) => new Date(nodeDateIso(a)).getTime() - new Date(nodeDateIso(b)).getTime());
+  const times = sorted.map((n) => new Date(nodeDateIso(n)).getTime());
+  const minT = Math.min(...times);
+  const maxT = Math.max(...times);
+  const span = Math.max(maxT - minT, 1);
+  const groups = [...new Set(sorted.map((n) => n.thread || n.memoryType || n.nodeType))];
+
+  sorted.forEach((node, idx) => {
+    const t = new Date(nodeDateIso(node)).getTime();
+    const x = 8 + ((t - minT) / span) * 84;
+    const g = groups.indexOf(node.thread || node.memoryType || node.nodeType);
+    const band = (g + 1) / (groups.length + 1);
+    const jitter = (((idx * 37) % 17) - 8) * 0.6;
+    state.positions[node.id] = { x, y: 10 + band * 80 + jitter };
+  });
+
+  for (let i = 0; i < 80; i += 1) {
+    const forces = Object.fromEntries(nodes.map((n) => [n.id, { x: 0, y: 0 }]));
+    for (let a = 0; a < nodes.length; a += 1) {
+      for (let b = a + 1; b < nodes.length; b += 1) {
+        const na = nodes[a];
+        const nb = nodes[b];
+        const pa = state.positions[na.id];
+        const pb = state.positions[nb.id];
+        const dx = pa.x - pb.x;
+        const dy = pa.y - pb.y;
+        const dist = Math.max(Math.hypot(dx, dy), 0.01);
+        if (dist < 12) {
+          const repel = (12 - dist) * 0.07;
+          const ux = dx / dist;
+          const uy = dy / dist;
+          forces[na.id].x += ux * repel;
+          forces[na.id].y += uy * repel;
+          forces[nb.id].x -= ux * repel;
+          forces[nb.id].y -= uy * repel;
+        }
+      }
+    }
+
+    nodes.forEach((node) => {
+      const from = state.positions[node.id];
+      (node.linkedNodeIds || []).forEach((targetId) => {
+        const to = state.positions[targetId];
+        if (!to) return;
+        const dx = to.x - from.x;
+        const dy = to.y - from.y;
+        forces[node.id].x += dx * 0.004;
+        forces[node.id].y += dy * 0.004;
+      });
+    });
+
+    nodes.forEach((node) => {
+      const p = state.positions[node.id];
+      p.x = Math.min(95, Math.max(5, p.x + forces[node.id].x));
+      p.y = Math.min(93, Math.max(7, p.y + forces[node.id].y));
+    });
+  }
+}
+
 function renderLinks(svg, sourceNodes, inRecover = false) {
+  const selected = byId(state.selectedId);
+  const selectedLinks = new Set([...(selected?.linkedNodeIds || []), selected?.id]);
   svg.innerHTML = '';
   sourceNodes.forEach((source) => {
     (source.linkedNodeIds || []).forEach((targetId) => {
@@ -286,14 +310,61 @@ function renderLinks(svg, sourceNodes, inRecover = false) {
       line.setAttribute('y1', `${from.y}%`);
       line.setAttribute('x2', `${to.x}%`);
       line.setAttribute('y2', `${to.y}%`);
-      line.setAttribute('stroke', '#8ecbff');
-      line.setAttribute('stroke-opacity', '0.26');
+      const active = selected && selectedLinks.has(source.id) && selectedLinks.has(target.id);
+      line.setAttribute('stroke', active ? '#92d3ff' : '#8ecbff');
+      line.setAttribute('stroke-opacity', active ? '0.65' : '0.22');
+      line.setAttribute('stroke-width', active ? '1.8' : '1');
       svg.appendChild(line);
     });
   });
 }
 
-function nodeLabel(node) { return node.title || node.label || 'Untitled'; }
+function openNodeDetail(id) {
+  const node = byId(id);
+  if (!node) return;
+  state.selectedId = id;
+  el.nodeDetailPanel.classList.remove('hidden');
+  el.editorForm.title.value = nodeLabel(node);
+  el.editorForm.fragment.value = node.fragment || '';
+  el.editorForm.date.value = nodeDateIso(node).slice(0, 10);
+  el.editorForm.tags.value = (node.tags || []).join(', ');
+
+  const linked = (node.linkedNodeIds || []).map(byId).filter(Boolean);
+  el.linkedNodeSummary.textContent = linked.length ? `Linked: ${linked.map((n) => nodeLabel(n)).join(', ')}` : 'Linked: none';
+  el.editorForm.linkTargetId.innerHTML = '<option value="">Link to node...</option>' + state.nodes.filter((n) => n.id !== node.id).map((n) => `<option value="${n.id}">${nodeLabel(n)} (${n.nodeType})</option>`).join('');
+}
+
+function renderMemoryNet() {
+  if (!isAuthenticated()) return;
+  computeNetLayout();
+  el.netField.querySelectorAll('.graph-node').forEach((n) => n.remove());
+  const selected = byId(state.selectedId);
+  const related = new Set([...(selected?.linkedNodeIds || []), selected?.id]);
+
+  state.nodes.forEach((node) => {
+    const pos = state.positions[node.id];
+    if (!pos) return;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `graph-node ${node.nodeType}`;
+    if (state.selectedId === node.id) btn.classList.add('active');
+    if (selected && related.has(node.id) && node.id !== selected.id) btn.classList.add('related');
+    if (selected && !related.has(node.id)) btn.classList.add('dimmed');
+    btn.style.left = `${pos.x}%`;
+    btn.style.top = `${pos.y}%`;
+    const fragment = (node.fragment || '').slice(0, 68);
+    btn.innerHTML = `<strong>${nodeLabel(node)}</strong>${fragment ? `<div class="node-fragment">${fragment}${node.fragment.length > 68 ? '…' : ''}</div>` : ''}<div class="node-date">${formatShortDate(nodeDateIso(node))}</div>`;
+    btn.addEventListener('click', () => {
+      openNodeDetail(node.id);
+      renderMemoryNet();
+    });
+    el.netField.appendChild(btn);
+  });
+  renderLinks(el.netLinks, state.nodes, false);
+
+  el.memoryForm.linkToId.innerHTML = '<option value="">Optional link</option>' + state.nodes.map((n) => `<option value="${n.id}">${nodeLabel(n)} (${n.nodeType})</option>`).join('');
+  if (!selected) el.nodeDetailPanel.classList.add('hidden');
+}
 
 function renderRecover() {
   if (!isAuthenticated()) return;
@@ -301,22 +372,19 @@ function renderRecover() {
   el.recoverZone.querySelectorAll('.graph-node').forEach((n) => n.remove());
   candidates.forEach((node) => {
     const pos = state.positions[node.id];
-    const metric = state.metricsById[node.id];
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = `graph-node ${node.nodeType}`;
-    if (metric.inferredScore > 2.2) btn.classList.add('promoted');
     if (state.selectedId === node.id) btn.classList.add('active');
     btn.style.left = `${pos.x}%`;
     btn.style.top = `${pos.y}%`;
-    btn.innerHTML = `<strong>${nodeLabel(node)}</strong><div class="muted">${node.nodeType}</div>`;
-    btn.addEventListener('click', () => selectNode(node.id));
+    btn.innerHTML = `<strong>${nodeLabel(node)}</strong><div class="node-date">${formatShortDate(nodeDateIso(node))}</div>`;
+    btn.addEventListener('click', () => selectRecoverNode(node.id));
     el.recoverZone.appendChild(btn);
   });
   renderLinks(el.recoverLinks, candidates, true);
-
   el.candidateStrip.innerHTML = candidates.map((n) => `<button type="button" class="candidate-pill" data-pick="${n.id}">${nodeLabel(n)}</button>`).join('') || '<p class="muted">No saved nodes match this cue yet.</p>';
-  el.candidateStrip.querySelectorAll('button[data-pick]').forEach((btn) => btn.addEventListener('click', () => selectNode(btn.dataset.pick)));
+  el.candidateStrip.querySelectorAll('button[data-pick]').forEach((btn) => btn.addEventListener('click', () => selectRecoverNode(btn.dataset.pick)));
 
   const selected = byId(state.selectedId);
   if (!selected) {
@@ -325,77 +393,37 @@ function renderRecover() {
     return;
   }
 
-  el.recoverDetail.innerHTML = `<strong>${nodeLabel(selected)}</strong><div class="muted">${selected.nodeType}</div><p>${selected.fragment || selected.notes || ''}</p><p class="muted">tags: ${(selected.tags || []).join(', ') || 'none'}</p>`;
+  el.recoverDetail.innerHTML = `<strong>${nodeLabel(selected)}</strong><div class="muted">${selected.nodeType} · ${formatShortDate(nodeDateIso(selected))}</div><p>${selected.fragment || selected.notes || ''}</p><p class="muted">tags: ${(selected.tags || []).join(', ') || 'none'}</p>`;
   const cascade = (selected.linkedNodeIds || []).map(byId).filter(Boolean).slice(0, 8);
   el.cascadeList.innerHTML = cascade.map((n) => `<button type="button" class="candidate-pill" data-cascade="${n.id}">${nodeLabel(n)}</button>`).join('') || '<p class="muted">No linked nodes yet.</p>';
-  el.cascadeList.querySelectorAll('button[data-cascade]').forEach((btn) => btn.addEventListener('click', () => selectNode(btn.dataset.cascade)));
+  el.cascadeList.querySelectorAll('button[data-cascade]').forEach((btn) => btn.addEventListener('click', () => selectRecoverNode(btn.dataset.cascade)));
 
   const metric = state.metricsById[selected.id];
-  const reasons = [];
-  if (state.cue && searchableText(selected).includes(state.cue.toLowerCase())) reasons.push('cue overlap');
-  if (metric.revisitCount) reasons.push(`revisited ${metric.revisitCount}x`);
-  if (metric.dwellMs > 400) reasons.push(`dwell ${Math.round(metric.dwellMs)}ms`);
-  if (metric.slowNearMs) reasons.push(`slow movement ${Math.round(metric.slowNearMs)}ms`);
-  if ((selected.linkedNodeIds || []).length) reasons.push(`${selected.linkedNodeIds.length} graph links`);
-  el.recoverTelemetry.innerHTML = `<div>Why this surfaced: ${reasons.join(' · ') || 'No strong signals yet'}</div><div>Current score: ${metric.inferredScore.toFixed(2)}</div><div>Avg pointer speed: ${state.movement.avgSpeed.toFixed(2)} px/ms</div>`;
+  el.recoverTelemetry.innerHTML = `<div>Current score: ${metric.inferredScore.toFixed(2)}</div><div>Avg pointer speed: ${state.movement.avgSpeed.toFixed(2)} px/ms</div>`;
 }
 
-function selectNode(id) {
+function selectRecoverNode(id) {
   state.selectedId = id;
   if (state.session) {
     state.session.selectedNode = id;
     if (!state.session.recallPath.length || state.session.recallPath[state.session.recallPath.length - 1] !== id) state.session.recallPath.push(id);
   }
   renderRecover();
-  renderMemoryNet();
-}
-
-function renderMemoryNet() {
-  if (!isAuthenticated()) return;
-  el.nodeList.innerHTML = '';
-  el.netField.querySelectorAll('.graph-node').forEach((n) => n.remove());
-  allNodes().forEach((node) => {
-    const item = document.createElement('article');
-    item.className = 'node-item';
-    item.innerHTML = `<strong>${nodeLabel(node)}</strong><div class="muted">${node.nodeType}</div><div class="item-actions"><button type="button" data-edit="${node.id}">Edit</button><button type="button" data-select="${node.id}">Open</button></div>`;
-    el.nodeList.appendChild(item);
-
-    const pos = state.positions[node.id];
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = `graph-node ${node.nodeType}`;
-    if (state.selectedId === node.id) btn.classList.add('active');
-    btn.style.left = `${pos.x}%`;
-    btn.style.top = `${pos.y}%`;
-    btn.innerHTML = `<strong>${nodeLabel(node)}</strong><div class="muted">${node.nodeType}</div>`;
-    btn.addEventListener('click', () => {
-      state.selectedId = node.id;
-      openEditor(node.id);
-      renderMemoryNet();
-    });
-    el.netField.appendChild(btn);
-  });
-  renderLinks(el.netLinks, allNodes(), false);
-
-  const options = allNodes().map((n) => `<option value="${n.id}">${nodeLabel(n)} (${n.nodeType})</option>`).join('');
-  el.linkForm.sourceId.innerHTML = `<option value="">source</option>${options}`;
-  el.linkForm.targetId.innerHTML = `<option value="">target</option>${options}`;
 }
 
 function renderTimeline() {
   if (!isAuthenticated()) return;
-  const events = eventNodes().sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-  el.eventTimeline.innerHTML = events.map((event) => `<button type="button" class="node-item" data-event="${event.id}"><strong>${event.title}</strong><div class="muted">${new Date(event.startTime).toLocaleString()}</div></button>`).join('') || '<p class="muted">No events yet.</p>';
+  const events = state.nodes.filter((n) => n.nodeType === 'event').sort((a, b) => new Date(nodeDateIso(a)).getTime() - new Date(nodeDateIso(b)).getTime());
+  el.eventTimeline.innerHTML = events.map((event) => `<button type="button" class="panel" data-event="${event.id}"><strong>${nodeLabel(event)}</strong><div class="muted">${new Date(nodeDateIso(event)).toLocaleString()}</div></button>`).join('') || '<p class="muted">No events yet.</p>';
 
-  const clusters = memoryNodes().reduce((acc, memory) => {
-    const date = (memory.rememberedAt || memory.createdAt || nowIso()).slice(0, 10);
+  const clusters = state.nodes.reduce((acc, node) => {
+    const date = nodeDateIso(node).slice(0, 10);
     if (!acc[date]) acc[date] = [];
-    acc[date].push(memory);
+    acc[date].push(node);
     return acc;
   }, {});
 
-  el.dateClusters.innerHTML = Object.entries(clusters).sort((a, b) => b[0].localeCompare(a[0])).map(([date, items]) => `<button type="button" class="node-item" data-date="${date}"><strong>${date}</strong><div class="muted">${items.length} memories</div></button>`).join('') || '<p class="muted">No memories yet.</p>';
-
+  el.dateClusters.innerHTML = Object.entries(clusters).sort((a, b) => b[0].localeCompare(a[0])).map(([date, items]) => `<button type="button" class="panel" data-date="${date}"><strong>${date}</strong><div class="muted">${items.length} nodes</div></button>`).join('') || '<p class="muted">No memories yet.</p>';
   el.eventTimeline.querySelectorAll('button[data-event]').forEach((btn) => btn.addEventListener('click', () => showTimelineDetail(byId(btn.dataset.event))));
   el.dateClusters.querySelectorAll('button[data-date]').forEach((btn) => btn.addEventListener('click', () => showDateCluster(btn.dataset.date)));
 }
@@ -403,24 +431,12 @@ function renderTimeline() {
 function showTimelineDetail(eventNode) {
   if (!eventNode) return;
   const linked = (eventNode.linkedNodeIds || []).map(byId).filter(Boolean);
-  el.timelineDetail.innerHTML = `<strong>${eventNode.title}</strong><div class="muted">${new Date(eventNode.startTime).toLocaleString()}${eventNode.endTime ? ` → ${new Date(eventNode.endTime).toLocaleString()}` : ''}</div><p>${eventNode.notes || ''}</p><h3>Linked nodes</h3>${linked.map((n) => `<div>${nodeLabel(n)} <span class="muted">(${n.nodeType})</span></div>`).join('') || '<p class="muted">None linked.</p>'}`;
+  el.timelineDetail.innerHTML = `<strong>${nodeLabel(eventNode)}</strong><div class="muted">${new Date(nodeDateIso(eventNode)).toLocaleString()}</div><p>${eventNode.fragment || eventNode.notes || ''}</p><h3>Linked nodes</h3>${linked.map((n) => `<div>${nodeLabel(n)} <span class="muted">(${n.nodeType})</span></div>`).join('') || '<p class="muted">None linked.</p>'}`;
 }
 
 function showDateCluster(date) {
-  const matched = memoryNodes().filter((memory) => (memory.rememberedAt || memory.createdAt || '').slice(0, 10) === date);
-  el.timelineDetail.innerHTML = `<strong>${date}</strong>${matched.map((m) => `<div>${nodeLabel(m)} <span class="muted">${m.memoryType || 'memory'}</span></div>`).join('')}`;
-}
-
-function openEditor(id) {
-  const node = byId(id);
-  if (!node) return;
-  state.editingId = id;
-  el.editorForm.classList.remove('hidden');
-  el.editorForm.title.value = node.title || node.label || '';
-  el.editorForm.fragment.value = node.fragment || '';
-  el.editorForm.tags.value = (node.tags || []).join(', ');
-  el.editorForm.thread.value = node.thread || '';
-  el.editorForm.notes.value = node.notes || '';
+  const matched = state.nodes.filter((node) => nodeDateIso(node).slice(0, 10) === date);
+  el.timelineDetail.innerHTML = `<strong>${date}</strong>${matched.map((m) => `<div>${nodeLabel(m)} <span class="muted">${m.nodeType}</span></div>`).join('')}`;
 }
 
 function upsertNode(node) {
@@ -433,11 +449,15 @@ function upsertNode(node) {
   renderTimeline();
 }
 
+function addBidirectionalLink(a, b) {
+  if (!a || !b || a.id === b.id) return;
+  a.linkedNodeIds = Array.from(new Set([...(a.linkedNodeIds || []), b.id]));
+  b.linkedNodeIds = Array.from(new Set([...(b.linkedNodeIds || []), a.id]));
+}
+
 function deleteNode(id) {
   state.nodes = state.nodes.filter((n) => n.id !== id).map((n) => ({ ...n, linkedNodeIds: (n.linkedNodeIds || []).filter((lid) => lid !== id) }));
   state.selectedId = state.selectedId === id ? null : state.selectedId;
-  state.editingId = null;
-  el.editorForm.classList.add('hidden');
   ensureModel();
   renderMemoryNet();
   renderRecover();
@@ -510,13 +530,13 @@ function onSignedIn(profile) {
   ensureModel();
   el.currentUserLabel.textContent = `Signed in as ${profile.name}`;
   el.userMenu.classList.remove('hidden');
+  setAuthFeedback('');
   renderMemoryNet();
   renderRecover();
   renderTimeline();
-  setAuthFeedback('');
-  const valid = ['home', 'recover', 'memory-net', 'timeline', 'settings'];
+  const valid = ['recover', 'memory-net', 'timeline', 'settings'];
   const route = location.hash.replace('#', '');
-  setRoute(valid.includes(route) ? route : 'home');
+  setRoute(valid.includes(route) ? route : 'memory-net');
   el.slowThresholdInput.value = state.settings.pointerSlowThreshold;
   el.nodeLimitInput.value = state.settings.recoverLimit;
 }
@@ -552,8 +572,8 @@ function wireEvents() {
     el.typeSelector.appendChild(button);
   });
 
-  el.memoryForm.memoryType.innerHTML = '<option value="">memory type</option>' + NODE_TYPES.filter((type) => !['memory', 'event'].includes(type)).map((type) => `<option value="${type}">${type}</option>`).join('');
-  el.anchorForm.nodeType.innerHTML = '<option value="">anchor type</option>' + NODE_TYPES.filter((type) => !['memory', 'event'].includes(type)).map((type) => `<option value="${type}">${type}</option>`).join('') + '<option value="date">date</option>';
+  el.memoryForm.memoryType.innerHTML = '<option value="">Type</option>' + NODE_TYPES.map((type) => `<option value="${type}">${type}</option>`).join('');
+  el.memoryForm.date.value = todayString();
 
   el.createProfileForm.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -562,83 +582,90 @@ function wireEvents() {
       el.createProfileName.value = '';
       renderAuth();
       onSignedIn(profile);
-    } catch (err) {
-      setAuthFeedback(err.message || 'Could not create profile.');
-    }
+    } catch (err) { setAuthFeedback(err.message || 'Could not create profile.'); }
   });
 
   el.signInForm.addEventListener('submit', (e) => {
     e.preventDefault();
-    try {
-      const profile = authRepository.signIn(el.signInProfileSelect.value);
-      onSignedIn(profile);
-    } catch (err) {
-      setAuthFeedback(err.message || 'Could not sign in.');
-    }
+    try { onSignedIn(authRepository.signIn(el.signInProfileSelect.value)); } catch (err) { setAuthFeedback(err.message || 'Could not sign in.'); }
   });
 
-  el.signOutBtn.addEventListener('click', () => signOut());
+  el.signOutBtn.addEventListener('click', signOut);
+
+  el.openComposerBtn.addEventListener('click', () => {
+    el.memoryForm.date.value = todayString();
+    el.memoryComposer.showModal();
+  });
+  el.cancelComposerBtn.addEventListener('click', () => el.memoryComposer.close());
 
   el.cueInput.addEventListener('input', () => { state.cue = el.cueInput.value; renderRecover(); });
   el.recencyFilter.addEventListener('change', () => { state.recencyDays = el.recencyFilter.value; renderRecover(); });
 
   el.memoryForm.addEventListener('submit', (e) => {
     e.preventDefault();
-    upsertNode({ id: uid('mem'), nodeType: 'memory', title: el.memoryForm.title.value.trim(), fragment: el.memoryForm.fragment.value.trim(), memoryType: el.memoryForm.memoryType.value, createdAt: nowIso(), rememberedAt: nowIso(), tags: parseCsv(el.memoryForm.tags.value), thread: el.memoryForm.thread.value.trim(), linkedNodeIds: [], notes: el.memoryForm.notes.value.trim(), sourceType: 'manual', sourceRef: null });
-    el.memoryForm.reset();
-    persistAll();
-  });
-
-  el.anchorForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    upsertNode({ id: uid('anc'), nodeType: el.anchorForm.nodeType.value, label: el.anchorForm.label.value.trim(), tags: parseCsv(el.anchorForm.tags.value), linkedNodeIds: [] });
-    el.anchorForm.reset();
-    persistAll();
-  });
-
-  el.eventForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    upsertNode({ id: uid('evt'), nodeType: 'event', title: el.eventForm.title.value.trim(), startTime: new Date(el.eventForm.startTime.value).toISOString(), endTime: el.eventForm.endTime.value ? new Date(el.eventForm.endTime.value).toISOString() : null, location: el.eventForm.location.value.trim(), people: parseCsv(el.eventForm.people.value), notes: el.eventForm.notes.value.trim(), linkedNodeIds: [], sourceType: 'manual' });
-    el.eventForm.reset();
-    persistAll();
-  });
-
-  el.nodeList.addEventListener('click', (e) => {
-    const edit = e.target.closest('[data-edit]');
-    const select = e.target.closest('[data-select]');
-    if (edit) openEditor(edit.dataset.edit);
-    if (select) {
-      state.selectedId = select.dataset.select;
-      setRoute('recover');
+    const node = {
+      id: uid('mem'),
+      nodeType: el.memoryForm.memoryType.value || 'memory',
+      title: el.memoryForm.title.value.trim(),
+      fragment: el.memoryForm.fragment.value.trim(),
+      date: el.memoryForm.date.value || todayString(),
+      rememberedAt: new Date(el.memoryForm.date.value || todayString()).toISOString(),
+      createdAt: nowIso(),
+      tags: parseCsv(el.memoryForm.tags.value),
+      linkedNodeIds: [],
+      sourceType: 'manual',
+    };
+    const linkId = el.memoryForm.linkToId.value;
+    upsertNode(node);
+    if (linkId) {
+      const source = byId(node.id);
+      const target = byId(linkId);
+      addBidirectionalLink(source, target);
+      ensureModel();
+      renderMemoryNet();
       renderRecover();
     }
+    persistAll();
+    el.memoryForm.reset();
+    el.memoryForm.date.value = todayString();
+    el.memoryComposer.close();
+    openNodeDetail(node.id);
+    renderMemoryNet();
   });
 
   el.editorForm.addEventListener('submit', (e) => {
     e.preventDefault();
-    const node = byId(state.editingId);
+    const node = byId(state.selectedId);
     if (!node) return;
     const title = el.editorForm.title.value.trim();
-    upsertNode({ id: node.id, title, label: title, fragment: el.editorForm.fragment.value.trim(), tags: parseCsv(el.editorForm.tags.value), thread: el.editorForm.thread.value.trim(), notes: el.editorForm.notes.value.trim() });
+    upsertNode({
+      id: node.id,
+      title,
+      label: title,
+      fragment: el.editorForm.fragment.value.trim(),
+      date: el.editorForm.date.value || todayString(),
+      rememberedAt: new Date(el.editorForm.date.value || todayString()).toISOString(),
+      tags: parseCsv(el.editorForm.tags.value),
+    });
     persistAll();
+    openNodeDetail(node.id);
   });
 
-  el.deleteNodeBtn.addEventListener('click', () => {
-    if (state.editingId) deleteNode(state.editingId);
-    persistAll();
-  });
-
-  el.linkForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const source = byId(el.linkForm.sourceId.value);
-    const target = byId(el.linkForm.targetId.value);
-    if (!source || !target || source.id === target.id) return;
-    source.linkedNodeIds = Array.from(new Set([...(source.linkedNodeIds || []), target.id]));
-    target.linkedNodeIds = Array.from(new Set([...(target.linkedNodeIds || []), source.id]));
+  el.quickLinkBtn.addEventListener('click', () => {
+    const source = byId(state.selectedId);
+    const target = byId(el.editorForm.linkTargetId.value);
+    addBidirectionalLink(source, target);
     ensureModel();
     renderMemoryNet();
     renderRecover();
     renderTimeline();
+    if (source) openNodeDetail(source.id);
+  });
+
+  el.deleteNodeBtn.addEventListener('click', () => {
+    if (!state.selectedId) return;
+    deleteNode(state.selectedId);
+    persistAll();
   });
 
   el.recoverZone.addEventListener('mousemove', onRecoverMove);

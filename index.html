@@ -12,10 +12,10 @@
         <h1>MemoryGate</h1>
         <div class="top-bar-right">
           <nav class="top-nav" aria-label="Primary">
-            <button type="button" data-route="home" class="nav-btn">Home</button>
-            <button type="button" data-route="recover" class="nav-btn">Recover</button>
             <button type="button" data-route="memory-net" class="nav-btn">Memory Net</button>
+            <button type="button" data-route="recover" class="nav-btn">Recover</button>
             <button type="button" data-route="timeline" class="nav-btn">Timeline</button>
+            <button type="button" data-route="settings" class="nav-btn">Settings</button>
           </nav>
           <div id="userMenu" class="user-menu hidden" aria-live="polite">
             <span id="currentUserLabel" class="user-label"></span>
@@ -45,15 +45,6 @@
               </form>
               <p id="authFeedback" class="muted"></p>
             </section>
-          </div>
-        </section>
-
-        <section id="homePage" class="page">
-          <div class="home-grid">
-            <button type="button" class="home-option" data-route="recover">Recover</button>
-            <button type="button" class="home-option" data-route="memory-net">Memory Net</button>
-            <button type="button" class="home-option" data-route="timeline">Timeline</button>
-            <button type="button" class="home-option" data-route="settings">Settings</button>
           </div>
         </section>
 
@@ -101,74 +92,59 @@
           </div>
         </section>
 
-        <section id="memoryNetPage" class="page hidden">
-          <div class="net-layout">
-            <section class="panel forms-col">
-              <h2>Add memory</h2>
-              <form id="memoryForm" class="stack-form">
-                <input name="title" required type="text" placeholder="Title" />
-                <textarea name="fragment" required placeholder="Fragment"></textarea>
-                <select name="memoryType" required>
-                  <option value="">memory type</option>
-                </select>
-                <input name="tags" type="text" placeholder="tags (comma separated)" />
-                <input name="thread" type="text" placeholder="thread" />
-                <textarea name="notes" placeholder="notes"></textarea>
-                <button type="submit">Save memory</button>
-              </form>
-
-              <h2>Add anchor</h2>
-              <form id="anchorForm" class="stack-form">
-                <select name="nodeType" required>
-                  <option value="">anchor type</option>
-                </select>
-                <input name="label" required type="text" placeholder="Label" />
-                <input name="tags" type="text" placeholder="tags" />
-                <button type="submit">Save anchor</button>
-              </form>
-
-              <h2>Add event</h2>
-              <form id="eventForm" class="stack-form">
-                <input name="title" required type="text" placeholder="Event title" />
-                <input name="startTime" required type="datetime-local" />
-                <input name="endTime" type="datetime-local" />
-                <input name="location" type="text" placeholder="Location" />
-                <input name="people" type="text" placeholder="People (comma separated)" />
-                <textarea name="notes" placeholder="Notes"></textarea>
-                <button type="submit">Save event</button>
-              </form>
-            </section>
-
-            <section class="panel">
+        <section id="memoryNetPage" class="page">
+          <div class="net-topbar panel">
+            <div>
               <h2>Memory Net</h2>
-              <div id="netField" class="graph-field">
+              <p class="muted">Browse and build your spatial memory graph.</p>
+            </div>
+            <button type="button" id="openComposerBtn" class="primary">Add memory</button>
+          </div>
+
+          <div class="net-layout">
+            <section class="panel">
+              <div id="netField" class="graph-field graph-field-large">
                 <svg id="netLinks" class="link-layer" aria-hidden="true"></svg>
               </div>
             </section>
 
-            <section class="panel editor-col">
-              <h2>Node list</h2>
-              <div id="nodeList" class="node-list"></div>
-
-              <h2>Selected editor</h2>
-              <form id="editorForm" class="stack-form hidden">
-                <input name="title" type="text" placeholder="Title / Label" />
-                <textarea name="fragment" placeholder="Fragment / Notes"></textarea>
+            <aside id="nodeDetailPanel" class="panel detail-aside hidden">
+              <h3>Memory detail</h3>
+              <form id="editorForm" class="stack-form">
+                <input name="title" type="text" placeholder="Title" required />
+                <textarea name="fragment" placeholder="Fragment"></textarea>
+                <input name="date" type="date" required />
                 <input name="tags" type="text" placeholder="tags" />
-                <input name="thread" type="text" placeholder="thread" />
-                <textarea name="notes" placeholder="notes"></textarea>
-                <button type="submit">Update node</button>
+                <div id="linkedNodeSummary" class="muted"></div>
+                <select name="linkTargetId">
+                  <option value="">Link to node...</option>
+                </select>
+                <button type="button" id="quickLinkBtn">Add link</button>
+                <button type="submit">Save changes</button>
                 <button type="button" id="deleteNodeBtn" class="danger">Delete node</button>
               </form>
-
-              <h2>Link nodes</h2>
-              <form id="linkForm" class="stack-form">
-                <select name="sourceId" required></select>
-                <select name="targetId" required></select>
-                <button type="submit">Create link</button>
-              </form>
-            </section>
+            </aside>
           </div>
+
+          <dialog id="memoryComposer" class="composer-dialog">
+            <form id="memoryForm" class="stack-form" method="dialog">
+              <h3>Add memory</h3>
+              <input name="title" required type="text" placeholder="Title" />
+              <textarea name="fragment" required placeholder="Fragment"></textarea>
+              <select name="memoryType" required>
+                <option value="">Type</option>
+              </select>
+              <input name="date" required type="date" />
+              <input name="tags" type="text" placeholder="tags (comma separated)" />
+              <select name="linkToId">
+                <option value="">Optional link</option>
+              </select>
+              <div class="row-actions">
+                <button type="submit" class="primary">Save memory</button>
+                <button type="button" id="cancelComposerBtn">Cancel</button>
+              </div>
+            </form>
+          </dialog>
         </section>
 
         <section id="timelinePage" class="page hidden">
